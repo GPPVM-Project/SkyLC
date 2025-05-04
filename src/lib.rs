@@ -8,3 +8,4 @@ mod mir;
 mod parser;
 mod semantics;
 mod util;
+mod error;
