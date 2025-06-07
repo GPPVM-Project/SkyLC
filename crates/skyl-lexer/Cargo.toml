@@ -1,0 +1,8 @@
+[package]
+name = "skyl-lexer"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+skyl-data = { path = "../skyl-data" }
+skyl-driver = { path = "../skyl-driver" }

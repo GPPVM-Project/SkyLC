@@ -1,0 +1,21 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/skyl-data",
+    "crates/skyl-lexer",
+    "crates/skyl-parser",
+    "crates/skyl-semantics",
+    "crates/skyl-ir",
+    "crates/skyl-codegen",
+    "crates/skyl-vm",
+    "skylc",
+    "crates/skyl-driver", "crates/skyl-stdlib",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["Vitor Henrique"]
+license = "MIT"
+
+[workspace.dependencies]

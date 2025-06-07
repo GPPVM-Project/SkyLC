@@ -1,0 +1,52 @@
+native def str_eq(a: str, b: str) -> bool;
+native def str_to_upper(a: str) -> str;
+native def str_to_lower(a: str) -> str;
+native def str_replace(a: str, from: str, to: str) -> str;
+native def str_split(a: str, delim: str) -> list;
+native def str_starts_with(a: str, b: str) -> bool;
+native def str_ends_with(a: str, b: str) -> bool;
+native def str_contains(a: str, b: str) -> bool;
+native def str_find(haystack: str, needle: str) -> int;
+native def str_slice(s: str, start: int, end: int) -> str;
+native def str_concat(a: str, b: str) -> str;
+native def str_len(s: str) -> int;
+
+internal def split(self: str, pattern: str) -> list {
+    return str_split(self, pattern);
+}
+
+internal def contains(self: str, substr: str) -> bool {
+    return str_contains(self, substr);
+}
+
+internal def starts_with(self: str, prefix: str) -> bool {
+    return str_starts_with(self, prefix);
+}
+
+internal def ends_with(self: str, suffix: str) -> bool {
+    return str_ends_with(self, suffix);
+}
+
+internal def index_of(self: str, substr: str) -> int {
+    return str_find(self, substr);
+}
+
+internal def sub_str(self: str, start: int, end: int) -> str {
+    return str_slice(self, start, end);
+}
+
+internal def concat(self: str, other: str) -> str {
+    return str_concat(self, other);
+}
+
+internal def to_string(self: str) -> str {
+    return self;
+}
+
+internal def to_upper(self: str) -> str {
+    return str_to_upper(self);
+}
+
+internal def length(self: str) -> int {
+    return str_len(self);
+}

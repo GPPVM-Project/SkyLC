@@ -1,0 +1,25 @@
+================= main (id = 1; arity = 0) =================
+|000  push            0   ; Int(0)
+|003  push            0   ; Int(0)
+|006  invokevirtual   7   ; (1 args)
+|016  push            1   ; Float(1.2)
+|019  push            2   ; Float(3.3)
+|022  new             3
+|024  getlocal0
+|025  getfield        0
+|027  getlocal0
+|028  getfield        1
+|030  getlocal0
+|031  getfield        2
+|033  getlocal1
+|034  invokenative    9   ; (1 args)
+|040  getlocal2
+|041  invokenative    9   ; (1 args)
+|047  getlocal3
+|048  invokenative    9   ; (1 args)
+|054  pop
+|055  pop
+|056  pop
+|057  pop
+|058  halt
+============================================================

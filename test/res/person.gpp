@@ -1,0 +1,8 @@
+type Person {
+    name: str,
+    age: int
+}
+
+internal def is_adult(self: Person) -> bool {
+    return self.age >= 18;
+}

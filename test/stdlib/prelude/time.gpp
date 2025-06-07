@@ -1,0 +1,2 @@
+native def now_ms() -> int;
+native def sleep(ms: int) -> void;

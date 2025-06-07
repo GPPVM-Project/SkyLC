@@ -1,0 +1,21 @@
+native def float_sqrt(f: float) -> float;
+native def float_to_int(f: float) -> int;
+
+internal def sqrt(self: float) -> float{
+    return float_sqrt(self);
+}
+
+internal def to_int(self: float) -> int {
+    return float_to_int(self);
+}
+
+internal def pow(self: float, exp: int) -> float {
+    let result = self;
+    
+    while exp > 1 {
+        result = result * self;
+        exp--;
+    }
+
+    return result;
+}

@@ -1,0 +1,61 @@
+native def int_abs(x: int) -> int;
+native def int_is_even(x: int) -> bool;
+native def int_is_odd(x: int) -> bool;
+native def int_sign(x: int) -> int;
+native def int_max(a: int, b: int) -> int;
+native def int_min(a: int, b: int) -> int;
+native def int_clamp(x: int, min: int, max: int) -> int;
+native def int_to_float(value: int) -> float;
+native def int_sqrt(value: int) -> float;
+native def int_to_string(value: int) -> str;
+
+internal def abs(self: int) -> int {
+    return int_abs(self);
+}
+
+internal def to_string(self: int) -> str{
+    return int_to_string(self);
+}
+
+internal def sqrt(self: int) -> float{
+    return int_sqrt(self);
+}
+
+internal def is_even(self: int) -> bool {
+    return int_is_even(self);
+}
+
+internal def is_odd(self: int) -> bool {
+    return int_is_odd(self);
+}
+
+internal def sign(self: int) -> int {
+    return int_sign(self);
+}
+
+internal def clamp(self: int, min: int, max: int) -> int {
+    return int_clamp(self, min, max);
+}
+
+internal def max(self: int, other: int) -> int {
+    return int_max(self, other);
+}
+
+internal def min(self: int, other: int) -> int {
+    return int_min(self, other);
+}
+
+internal def to_float(self: int) -> float {
+    return int_to_float(self);
+}
+
+internal def pow(self: int, exp: int) -> int {
+    let result = self;
+    
+    while exp > 1 {
+        result = result * self;
+        exp--;
+    }
+
+    return result;
+}

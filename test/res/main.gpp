@@ -1,0 +1,10 @@
+type MyType {
+    x: str,
+    y: float
+}
+
+def main() -> void {
+    if 2.to_float().to_int().to_float().to_int().to_float() == 1.0 + 1.0 {
+        println("Hello");
+    }
+}

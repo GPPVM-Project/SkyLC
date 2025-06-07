@@ -1,0 +1,9 @@
+[package]
+name = "skyl-driver"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+skyl-data = { path = "../skyl-data" }
