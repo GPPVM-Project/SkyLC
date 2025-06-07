@@ -1,4 +1,5 @@
 mod ast;
+pub mod bytecode;
 mod chunk;
 mod collection_kind;
 mod config;
@@ -6,6 +7,7 @@ mod descriptors;
 mod expressions;
 mod instructions;
 mod ir_types;
+pub mod objects;
 mod reader;
 mod semantic_types;
 mod statements;

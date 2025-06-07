@@ -16,7 +16,7 @@ use skyl_data::{
     AnnotatedAST, AnnotatedExpression, AnnotatedStatement, Archetype, CompilerConfig, ContextScope,
     ContextStack, Expression, FieldDeclaration, FieldDescriptor, FunctionPrototype, Literal,
     MethodDescriptor, MethodParameter, OperatorKind, SemanticCode, SemanticValue, Statement,
-    StaticValue, SymbolKind, SymbolTable, Token, TokenKind, TypeDecl, TypeDescriptor, Value,
+    StaticValue, SymbolKind, SymbolTable, Token, TokenKind, TypeDecl, TypeDescriptor, ValueWrapper,
     read_file_without_bom,
 };
 use skyl_driver::{
@@ -239,7 +239,7 @@ impl SemanticAnalyzer {
             }
         }
 
-        let static_value = StaticValue::new(type_descriptor, Value::Kind);
+        let static_value = StaticValue::new(type_descriptor, ValueWrapper::Kind);
         self.define_symbol(name.to_string(), static_value);
     }
 
@@ -482,7 +482,7 @@ impl SemanticAnalyzer {
 
                     let value = SemanticValue::new(
                         Some(self.resolve_expr_type(expr)),
-                        Value::Internal,
+                        ValueWrapper::Internal,
                         name.line,
                     );
 
@@ -498,7 +498,7 @@ impl SemanticAnalyzer {
                     AnnotatedStatement::Variable(name.clone(), Some(annotated_value))
                 }
                 None => {
-                    let value = SemanticValue::new(None, Value::Internal, name.line);
+                    let value = SemanticValue::new(None, ValueWrapper::Internal, name.line);
                     let mut context = &mut self.context();
                     context.declare_name(&name.lexeme, value);
                     AnnotatedStatement::Variable(name.clone(), None)
@@ -631,7 +631,7 @@ impl SemanticAnalyzer {
     fn define_type(&mut self, descriptor: Rc<RefCell<TypeDescriptor>>) {
         self.symbol_table.define(
             descriptor.clone().borrow().name.clone(),
-            StaticValue::new(descriptor, Value::Internal),
+            StaticValue::new(descriptor, ValueWrapper::Internal),
         );
     }
 
@@ -703,7 +703,7 @@ impl SemanticAnalyzer {
             let kind = self.resolve_expr_type(&arg.kind);
             self.define_local(
                 &arg.name.lexeme,
-                SemanticValue::new(Some(kind), Value::Internal, arg.name.line),
+                SemanticValue::new(Some(kind), ValueWrapper::Internal, arg.name.line),
             );
         }
 
@@ -2906,7 +2906,7 @@ impl SemanticAnalyzer {
             let kind = self.resolve_expr_type(&arg.kind);
             self.define_local(
                 &arg.name.lexeme,
-                SemanticValue::new(Some(kind), Value::Internal, arg.name.line),
+                SemanticValue::new(Some(kind), ValueWrapper::Internal, arg.name.line),
             );
         }
 
@@ -2987,7 +2987,7 @@ impl SemanticAnalyzer {
 
                 self.define_local(
                     &field.lexeme,
-                    SemanticValue::new(Some(field_kind), Value::Internal, field.line),
+                    SemanticValue::new(Some(field_kind), ValueWrapper::Internal, field.line),
                 );
 
                 let get_kind =

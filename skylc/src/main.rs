@@ -2,12 +2,19 @@ mod cli;
 
 use anyhow::{Context, Result};
 use clap::Parser;
+use skyl_codegen::BytecodeGenerator;
 use skyl_data::{read_file_without_bom, CompilerConfig};
+use skyl_ir::IRGenerator;
 use skyl_semantics::SemanticAnalyzer;
+use skyl_stdlib::StdLibrary;
+use skyl_vm::virtual_machine::VirtualMachine;
 use std::{cell::RefCell, rc::Rc};
 
 use cli::{Cli, Commands, CompileArgs};
-use skyl_driver::{errors::CompilerErrorReporter, ExecutablePipeline, PipelineBuilder};
+use skyl_driver::{
+    errors::{handle_errors, CompilerErrorReporter},
+    gpp_error, ExecutablePipeline, PipelineBuilder,
+};
 use skyl_lexer::Lexer;
 
 fn main() -> Result<()> {
@@ -36,25 +43,25 @@ fn compile(args: &CompileArgs) -> Result<()> {
     let config = CompilerConfig::new(args.clone().input_file);
     let mut pipeline = PipelineBuilder::new::<Lexer>()
         .add_step::<skyl_parser::Parser>()
-        .add_step::<SemanticAnalyzer>();
+        .add_step::<SemanticAnalyzer>()
+        .add_step::<IRGenerator>()
+        .add_step::<BytecodeGenerator>();
 
-    let ast_result = pipeline.execute(source_code, &config, Rc::clone(&reporter));
+    let bytecode = pipeline.execute(source_code, &config, Rc::clone(&reporter));
 
     if reporter.borrow().has_errors() {
-        return Err(anyhow::anyhow!("A compilação falhou com um ou mais erros."));
+        handle_errors(&reporter.borrow());
     }
 
-    println!("\n--- AST Gerada ---");
-    println!("{:#?}", ast_result.unwrap());
-    println!("--------------------");
-
-    if let Some(output_path) = &args.output {
-        println!(
-            "\n(Futuro) Escrevendo resultado para: {}",
-            output_path.display()
-        );
+    match bytecode {
+        Err(e) => gpp_error!("{}", e.0),
+        Ok(b) => {
+            let mut vm = VirtualMachine::new();
+            vm.attach_bytecode(&b);
+            StdLibrary::register_std_libraries(&mut vm);
+            vm.interpret();
+        }
     }
 
-    println!("\nCompilação concluída com sucesso.");
     Ok(())
 }

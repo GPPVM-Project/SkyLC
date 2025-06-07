@@ -32,7 +32,7 @@ impl CompileTimeValue {
 #[derive(Debug, Clone, PartialEq)]
 pub struct CompileTimeObject {}
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct CompileTimeChunk {
     pub code: Vec<u8>,
     pub lines: Vec<usize>,

@@ -9,8 +9,12 @@ license.workspace = true
 skyl-lexer = { path = "../crates/skyl-lexer" }
 skyl-parser = { path = "../crates/skyl-parser" }
 skyl-semantics = { path = "../crates/skyl-semantics" }
+skyl-ir = { path = "../crates/skyl-ir" }
+skyl-codegen = { path = "../crates/skyl-codegen" }
+skyl-vm = { path = "../crates/skyl-vm" }
 skyl-driver = { path = "../crates/skyl-driver" }
 skyl-data = { path = "../crates/skyl-data" }
+skyl-stdlib = { path = "../crates/skyl-stdlib" }
 
 clap = { version = "4.5.4", features = ["derive"] }
 anyhow = "1.0.86"

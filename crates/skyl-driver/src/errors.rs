@@ -84,3 +84,22 @@ impl CompilerErrorReporter {
 
 #[derive(Debug)]
 pub struct PipelineError(pub String);
+
+pub fn handle_errors(reporter: &CompilerErrorReporter) {
+    if reporter.has_errors() {
+        for error in reporter.get_errors() {
+            match error.line {
+                Some(line) => {
+                    println!("\x1b[31mError\x1b[0m: {}. At line {}.", error.msg, line);
+                }
+                None => {
+                    println!("\x1b[31mError\x1b[0m: {}.", error.msg);
+                }
+            }
+        }
+
+        gpp_error!(
+            "The compiler stopped because an error occurred during one of the compilation phases."
+        );
+    }
+}

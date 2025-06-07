@@ -17,7 +17,7 @@ pub struct ObjectDescriptor {
 }
 
 #[derive(Debug, Clone)]
-pub enum Value {
+pub enum ValueWrapper {
     Int(i32),
     Float(f32),
     Boolean(bool),
@@ -27,21 +27,21 @@ pub enum Value {
     Internal,
 }
 
-impl Value {
+impl ValueWrapper {
     pub fn boolean(value: bool) -> Self {
-        Value::Boolean(value)
+        ValueWrapper::Boolean(value)
     }
 
     pub fn float(value: f32) -> Self {
-        Value::Float(value)
+        ValueWrapper::Float(value)
     }
 
     pub fn int(value: i32) -> Self {
-        Value::Int(value)
+        ValueWrapper::Int(value)
     }
 
     pub fn as_int(&self) -> Option<i32> {
-        if let Value::Int(v) = self {
+        if let ValueWrapper::Int(v) = self {
             Some(*v)
         } else {
             None
@@ -49,7 +49,7 @@ impl Value {
     }
 
     pub fn as_float(&self) -> Option<f32> {
-        if let Value::Float(v) = self {
+        if let ValueWrapper::Float(v) = self {
             Some(*v)
         } else {
             None
@@ -57,7 +57,7 @@ impl Value {
     }
 
     pub fn as_boolean(&self) -> Option<bool> {
-        if let Value::Boolean(v) = self {
+        if let ValueWrapper::Boolean(v) = self {
             Some(*v)
         } else {
             None
@@ -65,7 +65,7 @@ impl Value {
     }
 
     pub fn as_object(&self) -> Option<ObjectDescriptor> {
-        if let Value::Object(v) = self {
+        if let ValueWrapper::Object(v) = self {
             Some(v.clone())
         } else {
             None
@@ -76,12 +76,16 @@ impl Value {
 #[derive(Clone, Debug)]
 pub struct SemanticValue {
     pub kind: Option<Rc<RefCell<TypeDescriptor>>>,
-    pub value: Value,
+    pub value: ValueWrapper,
     pub line: usize,
 }
 
 impl SemanticValue {
-    pub fn new(kind: Option<Rc<RefCell<TypeDescriptor>>>, value: Value, line: usize) -> Self {
+    pub fn new(
+        kind: Option<Rc<RefCell<TypeDescriptor>>>,
+        value: ValueWrapper,
+        line: usize,
+    ) -> Self {
         Self { kind, value, line }
     }
 }
@@ -89,11 +93,11 @@ impl SemanticValue {
 #[derive(Clone, Debug)]
 pub struct StaticValue {
     pub kind: Rc<RefCell<TypeDescriptor>>,
-    pub value: Value,
+    pub value: ValueWrapper,
 }
 
 impl StaticValue {
-    pub fn new(kind: Rc<RefCell<TypeDescriptor>>, value: Value) -> Self {
+    pub fn new(kind: Rc<RefCell<TypeDescriptor>>, value: ValueWrapper) -> Self {
         Self { kind, value }
     }
 }

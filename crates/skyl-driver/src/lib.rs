@@ -5,7 +5,7 @@ use std::rc::Rc;
 
 use skyl_data::CompilerConfig;
 
-use crate::errors::{CompilerErrorReporter, PipelineError};
+use crate::errors::{handle_errors, CompilerErrorReporter, PipelineError};
 
 pub trait PipelineStep: Default {
     type Input;
@@ -77,6 +77,9 @@ where
         let intermediate_result =
             self.previous_pipeline
                 .execute(input, &config, Rc::clone(&reporter))?;
+
+        handle_errors(&reporter.borrow());
+
         self.step.run(intermediate_result, config, reporter)
     }
 }

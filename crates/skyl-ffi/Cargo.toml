@@ -1,5 +1,5 @@
 [package]
-name = "skyl-stdlib"
+name = "skyl-ffi"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -7,7 +7,3 @@ license.workspace = true
 
 [dependencies]
 skyl-data = { path = "../skyl-data" }
-skyl-ffi = { path = "../skyl-ffi" }
-skyl-driver = { path = "../skyl-driver" }
-rand = "0.9.1"
-ureq = "3.0.11"
