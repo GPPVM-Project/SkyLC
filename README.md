@@ -53,6 +53,7 @@ Project configuration determines which plugins are active for each compilation s
 
 ### Building the Compiler
 
+Windows
 ```bash
-cargo build --release
+./install.ps1
 ```
