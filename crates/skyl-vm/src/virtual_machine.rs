@@ -4,7 +4,7 @@ use core::fmt::Debug;
 use std::{cell::RefCell, rc::Rc};
 
 use skyl_data::{
-    Instruction,
+    CompilerConfig, Instruction,
     bytecode::{Bytecode, Chunk},
     objects::{Instance, List, Value},
 };
@@ -49,6 +49,7 @@ pub struct VirtualMachine {
     pub fp: usize,
     pub stack: Vec<Value>,
     pub bytecode: Option<Bytecode>,
+    config: CompilerConfig,
     native_functions: Vec<NativeFunction>,
     frame_stack: Vec<RefCell<Frame>>,
     unsafe_mode: bool,
@@ -61,7 +62,11 @@ impl NativeBridge for VirtualMachine {
         match func_info {
             Some(info) => {
                 let index = info.id;
-                println!("Linking: {} function.", name);
+
+                if self.config.verbose {
+                    println!("Linking: {} function.", name);
+                }
+
                 self.native_functions[index as usize] = NativeFunction::new(func, info.arity);
             }
 
@@ -79,11 +84,12 @@ impl NativeBridge for VirtualMachine {
 }
 
 impl VirtualMachine {
-    pub fn new() -> Self {
+    pub fn new(config: &CompilerConfig) -> Self {
         Self {
             ip: 0,
             sp: 0,
             fp: 0,
+            config: config.clone(),
             stack: vec![Value::Void; 255],
             frame_stack: Vec::new(),
             native_functions: Vec::new(),
@@ -672,12 +678,19 @@ impl VirtualMachine {
 
     pub fn interpret(&mut self) {
         self.attach_main_fn();
-        println!("{}", "=".repeat(60));
-        println!("Running code");
-        println!("{}", "=".repeat(60));
+
+        if self.config.verbose {
+            println!("{}", "=".repeat(60));
+            println!("Running code");
+            println!("{}", "=".repeat(60));
+        }
+
         let timer = std::time::Instant::now();
         self.execution_loop();
-        println!("Virtual machine took: {:?}", timer.elapsed());
+
+        if self.config.verbose {
+            println!("Virtual machine took: {:?}", timer.elapsed());
+        }
     }
 
     #[inline]

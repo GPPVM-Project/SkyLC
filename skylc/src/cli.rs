@@ -26,4 +26,7 @@ pub struct CompileArgs {
 
     #[arg(short, long)]
     pub output: Option<PathBuf>,
+
+    #[arg(short, long)]
+    pub verbose: bool,
 }

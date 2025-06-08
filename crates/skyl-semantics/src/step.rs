@@ -17,7 +17,7 @@ impl Default for SemanticAnalyzer {
             modules: Vec::new(),
             current_descriptor_id: None,
             current_return_kind_id: None,
-            config: None,
+            config: CompilerConfig::empty(),
             statements: Vec::new(),
             context_stack: ContextStack::new(),
             current_stmt: 0,

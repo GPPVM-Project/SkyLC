@@ -52,7 +52,7 @@ fn compile(args: &CompileArgs) -> Result<()> {
         },
     };
 
-    let config = CompilerConfig::new(args.clone().input_file, stdlib_path);
+    let config = CompilerConfig::new(args.clone().input_file, stdlib_path, args.verbose);
 
     let mut pipeline = PipelineBuilder::new::<Lexer>()
         .add_step::<skyl_parser::Parser>()
@@ -69,7 +69,7 @@ fn compile(args: &CompileArgs) -> Result<()> {
     match bytecode {
         Err(e) => gpp_error!("{}", e.0),
         Ok(b) => {
-            let mut vm = VirtualMachine::new();
+            let mut vm = VirtualMachine::new(&config);
             vm.attach_bytecode(&b);
             StdLibrary::register_std_libraries(&mut vm);
             vm.interpret();

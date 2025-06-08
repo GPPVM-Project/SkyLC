@@ -33,7 +33,7 @@ use crate::import_pipeline::ModuleImportPipeline;
 pub struct SemanticAnalyzer {
     pub(crate) statements: Vec<Statement>,
     pub(crate) context_stack: ContextStack,
-    pub(crate) config: Option<CompilerConfig>,
+    pub(crate) config: CompilerConfig,
     pub(crate) symbol_table: SymbolTable,
     pub(crate) current_stmt: usize,
     pub(crate) current_symbol: String,
@@ -52,7 +52,7 @@ impl SemanticAnalyzer {
             modules: Vec::new(),
             current_descriptor_id: None,
             current_return_kind_id: None,
-            config: None,
+            config: CompilerConfig::empty(),
             statements: Vec::new(),
             context_stack: ContextStack::new(),
             current_stmt: 0,
@@ -1084,7 +1084,7 @@ impl SemanticAnalyzer {
     /// - `statements`: A vector of statements to initialize the internal statements list with.
     fn reset_internal_state(&mut self, statements: Vec<Statement>, config: &CompilerConfig) {
         self.statements = statements;
-        self.config = Some(config.clone());
+        self.config = config.clone();
         self.context_stack = ContextStack::new();
         self.current_stmt = 0;
     }
@@ -3074,32 +3074,24 @@ impl SemanticAnalyzer {
             }
             self.modules.push(canonical_path.to_str().unwrap().into());
         } else {
-            gpp_error!(
-                "Não foi possível acessar o caminho do módulo '{}'.",
-                full_path.display()
-            );
+            gpp_error!("Cannot access the module '{}'.path", full_path.display());
             return vec![];
         }
 
         let source = match read_file_without_bom(full_path.to_str().unwrap()) {
             Ok(s) => s,
             Err(e) => {
-                gpp_error!("Erro ao ler o módulo '{}': {}", full_path.display(), e);
+                gpp_error!("Error to read module '{}': {}", full_path.display(), e);
                 return vec![];
             }
         };
 
-        println!(
-            "[Info] Importando e analisando módulo: {}",
-            full_path.display()
-        );
+        if self.config.verbose {
+            println!("Importing: {}", full_path.display());
+        }
 
         let mut import_pipeline = ModuleImportPipeline::get();
-        let ast = import_pipeline.execute(
-            source,
-            &self.config.clone().unwrap(),
-            Rc::clone(&self.reporter),
-        );
+        let ast = import_pipeline.execute(source, &self.config.clone(), Rc::clone(&self.reporter));
 
         let mut imported_annotated_stmts = Vec::new();
 
@@ -3111,16 +3103,14 @@ impl SemanticAnalyzer {
     }
 
     fn resolve_module_path(&self, relative_path: &PathBuf) -> Option<PathBuf> {
-        let config = self.config.as_ref().unwrap();
-
-        if let stdlib_root = &config.stdlib_path {
+        if let stdlib_root = &self.config.stdlib_path {
             let potential_path = stdlib_root.join(relative_path);
             if potential_path.exists() {
                 return Some(potential_path);
             }
         }
 
-        let potential_path = config.root.join(relative_path);
+        let potential_path = self.config.root.join(relative_path);
         if potential_path.exists() {
             return Some(potential_path);
         }
