@@ -61,7 +61,7 @@ impl NativeBridge for VirtualMachine {
         match func_info {
             Some(info) => {
                 let index = info.id;
-                println!("ID: {} - Linking: {} function.", index, name);
+                println!("Linking: {} function.", name);
                 self.native_functions[index as usize] = NativeFunction::new(func, info.arity);
             }
 
@@ -655,8 +655,19 @@ impl VirtualMachine {
         self.bytecode = Some(bytecode.clone());
         self.attach_main_fn();
 
+        let native_fn_max_id = bytecode
+            .native_functions
+            .iter()
+            .max_by_key(|n| n.1.id)
+            .unwrap()
+            .1
+            .id;
+
         // TODO: Fix the native functions detection
-        self.native_functions = vec![NativeFunction::new(Self::invalidate_native_call, 0); 1 << 15];
+        self.native_functions = vec![
+            NativeFunction::new(Self::invalidate_native_call, 0);
+            native_fn_max_id as usize + 1
+        ];
     }
 
     pub fn interpret(&mut self) {

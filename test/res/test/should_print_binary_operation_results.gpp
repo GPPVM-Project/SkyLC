@@ -1,6 +1,0 @@
-native def print(x: object) -> void;
-
-def main() -> void {
-    print(20 + 30);
-    print(20 - 20);
-}

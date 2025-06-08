@@ -39,7 +39,7 @@ impl CompileTimeStack {
         self.values.push(value);
     }
 
-    pub fn pop(&mut self) -> LocalValue {
+    fn pop(&mut self) -> LocalValue {
         self.values.pop().unwrap()
     }
 

@@ -1,4 +1,7 @@
 /target/
+/dist/
+/test/
+
 Cargo.lock
 
 *.log

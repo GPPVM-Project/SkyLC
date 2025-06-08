@@ -8,6 +8,7 @@ use skyl_ir::IRGenerator;
 use skyl_semantics::SemanticAnalyzer;
 use skyl_stdlib::StdLibrary;
 use skyl_vm::virtual_machine::VirtualMachine;
+use skylc::find_stdlib_path;
 use std::{cell::RefCell, rc::Rc};
 
 use cli::{Cli, Commands, CompileArgs};
@@ -24,6 +25,7 @@ fn main() -> Result<()> {
         Commands::Compile(args) => {
             compile(args)?;
         }
+        _ => {}
     }
 
     Ok(())
@@ -40,7 +42,18 @@ fn compile(args: &CompileArgs) -> Result<()> {
             )
         })?;
 
-    let config = CompilerConfig::new(args.clone().input_file);
+    let stdlib_path = find_stdlib_path();
+
+    let stdlib_path = match stdlib_path {
+        Err(e) => gpp_error!("{}", e),
+        Ok(p) => match p {
+            None => gpp_error!("The required environment variable SKYL_LIB is not defined."),
+            Some(p) => p,
+        },
+    };
+
+    let config = CompilerConfig::new(args.clone().input_file, stdlib_path);
+
     let mut pipeline = PipelineBuilder::new::<Lexer>()
         .add_step::<skyl_parser::Parser>()
         .add_step::<SemanticAnalyzer>()

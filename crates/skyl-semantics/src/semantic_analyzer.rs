@@ -7,6 +7,7 @@ use std::{
     collections::{HashMap, HashSet},
     env,
     fmt::{Display, format, write},
+    path::PathBuf,
     process,
     rc::Rc,
     string,
@@ -20,11 +21,14 @@ use skyl_data::{
     read_file_without_bom,
 };
 use skyl_driver::{
+    ExecutablePipeline,
     errors::{CompilationError, CompilerErrorReporter},
     gpp_error,
 };
 use skyl_lexer::Lexer;
 use skyl_parser::Parser;
+
+use crate::import_pipeline::ModuleImportPipeline;
 
 pub struct SemanticAnalyzer {
     pub(crate) statements: Vec<Statement>,
@@ -3047,39 +3051,81 @@ impl SemanticAnalyzer {
     }
 
     fn analyze_import(&mut self, module: &Vec<Token>) -> Vec<AnnotatedStatement> {
-        let mut mod_path = self.config.clone().unwrap().root;
-
-        for part in 0..module.len() - 1 {
-            mod_path = mod_path.join(&module[part].lexeme);
+        let mut relative_path = PathBuf::new();
+        for token in module {
+            relative_path.push(&token.lexeme);
         }
+        relative_path.set_extension("gpp");
 
-        mod_path = mod_path.join(format!("{}{}", module.last().unwrap().lexeme, ".gpp"));
+        let full_path = match self.resolve_module_path(&relative_path) {
+            Some(path) => path,
+            None => {
+                gpp_error!("Module '{}' not found.", relative_path.display());
+                return vec![];
+            }
+        };
 
-        if self
-            .modules
-            .contains(&mod_path.to_str().unwrap().to_string())
-        {
+        if let Ok(canonical_path) = full_path.canonicalize() {
+            if self
+                .modules
+                .contains(&canonical_path.to_str().unwrap().clone().into())
+            {
+                return vec![];
+            }
+            self.modules.push(canonical_path.to_str().unwrap().into());
+        } else {
+            gpp_error!(
+                "Não foi possível acessar o caminho do módulo '{}'.",
+                full_path.display()
+            );
             return vec![];
         }
 
-        self.modules.push(mod_path.to_str().unwrap().to_string());
+        let source = match read_file_without_bom(full_path.to_str().unwrap()) {
+            Ok(s) => s,
+            Err(e) => {
+                gpp_error!("Erro ao ler o módulo '{}': {}", full_path.display(), e);
+                return vec![];
+            }
+        };
 
-        println!("{}", mod_path.to_str().unwrap());
+        println!(
+            "[Info] Importando e analisando módulo: {}",
+            full_path.display()
+        );
 
-        let source = read_file_without_bom(mod_path.to_str().unwrap()).unwrap();
+        let mut import_pipeline = ModuleImportPipeline::get();
+        let ast = import_pipeline.execute(
+            source,
+            &self.config.clone().unwrap(),
+            Rc::clone(&self.reporter),
+        );
 
-        let mut lexer = Lexer::new(source);
-        let tokens = lexer.scan_tokens(self.reporter.clone());
-        let mut parser = Parser::new();
-        let stmts = parser.parse(self.reporter.clone(), tokens);
+        let mut imported_annotated_stmts = Vec::new();
 
-        let mut annotated_stmts: Vec<AnnotatedStatement> = Vec::new();
-
-        for stmt in &stmts.statements {
-            annotated_stmts.append(&mut self.analyze_stmt(stmt));
+        for stmt in ast.unwrap().statements {
+            imported_annotated_stmts.append(&mut self.analyze_stmt(&stmt));
         }
 
-        annotated_stmts
+        imported_annotated_stmts
+    }
+
+    fn resolve_module_path(&self, relative_path: &PathBuf) -> Option<PathBuf> {
+        let config = self.config.as_ref().unwrap();
+
+        if let stdlib_root = &config.stdlib_path {
+            let potential_path = stdlib_root.join(relative_path);
+            if potential_path.exists() {
+                return Some(potential_path);
+            }
+        }
+
+        let potential_path = config.root.join(relative_path);
+        if potential_path.exists() {
+            return Some(potential_path);
+        }
+
+        None
     }
 
     fn setup_prelude(&mut self) -> Vec<AnnotatedStatement> {

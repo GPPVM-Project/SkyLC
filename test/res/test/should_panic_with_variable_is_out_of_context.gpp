@@ -1,9 +1,0 @@
-native def print(x: object) -> void;
-
-def main() -> void {
-    if true {
-        let x = 0;
-    }
-
-    print(x);
-}

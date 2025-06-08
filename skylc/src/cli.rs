@@ -14,6 +14,9 @@ pub struct Cli {
 pub enum Commands {
     #[command(name = "compile", short_flag = 'c')]
     Compile(CompileArgs),
+
+    #[command(name = "version", short_flag = 'v')]
+    Version,
 }
 
 #[derive(Parser, Debug, Clone)]

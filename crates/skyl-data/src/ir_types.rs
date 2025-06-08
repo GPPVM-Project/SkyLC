@@ -16,9 +16,9 @@ impl NativeFunctionInfo {
 
 #[derive(Debug, Clone)]
 pub struct IRType {
-    id: u32,
-    fields: HashMap<String, u8>,
-    chunk: CompileTimeChunk,
+    pub id: u32,
+    pub fields: HashMap<String, u8>,
+    pub chunk: CompileTimeChunk,
 }
 
 #[derive(Debug, Clone)]
