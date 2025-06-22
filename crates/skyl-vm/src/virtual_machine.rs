@@ -52,6 +52,7 @@ pub struct VirtualMachine {
     config: CompilerConfig,
     native_functions: Vec<NativeFunction>,
     frame_stack: Vec<RefCell<Frame>>,
+    chunk: Rc<Chunk>,
     unsafe_mode: bool,
 }
 
@@ -89,6 +90,7 @@ impl VirtualMachine {
             ip: 0,
             sp: 0,
             fp: 0,
+            chunk: Rc::new(Chunk::new(vec![], vec![])),
             config: config.clone(),
             stack: vec![Value::Void; 255],
             frame_stack: Vec::new(),
@@ -237,10 +239,7 @@ impl VirtualMachine {
     #[inline]
     pub fn handle_push(&mut self) {
         let constant_index = self.read_u16();
-
-        let constant = self.frame_stack.last().unwrap().borrow().chunk.constants
-            [constant_index as usize]
-            .clone();
+        let constant = self.chunk.constants[constant_index as usize].clone();
 
         self.push(constant);
     }
@@ -410,15 +409,14 @@ impl VirtualMachine {
 
     #[inline]
     pub fn handle_new(&mut self) {
-        let arity = self.read_byte();
+        let arity = self.read_byte() as usize;
 
-        let mut fields: Vec<Value> = Vec::new();
+        self.sp -= arity;
 
-        self.sp -= arity as usize;
-
-        for i in 0..arity as usize {
-            fields.push(self.stack[self.sp + i].clone());
-        }
+        let fields = self.stack[self.sp..self.sp + arity]
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>();
 
         self.push(Value::Object(Rc::new(RefCell::new(Instance::new(fields)))));
     }
@@ -686,6 +684,7 @@ impl VirtualMachine {
         }
 
         let timer = std::time::Instant::now();
+
         self.execution_loop();
 
         if self.config.verbose {
@@ -775,7 +774,7 @@ impl VirtualMachine {
     }
 
     fn read_byte(&mut self) -> u8 {
-        let byte = self.frame_stack.last().unwrap().borrow().chunk.code[self.ip];
+        let byte = self.chunk.code[self.ip];
         self.ip += 1;
 
         byte
@@ -803,6 +802,7 @@ impl VirtualMachine {
 
     fn attach_main_fn(&mut self) {
         let main = Frame::new(self.bytecode.clone().unwrap().main.unwrap().chunk);
+        self.chunk = main.chunk.clone();
         self.frame_stack.push(RefCell::new(main));
         self.ip = 0;
     }
@@ -810,6 +810,9 @@ impl VirtualMachine {
     fn attach_fn(&mut self, function_id: u32, arity: u8) {
         let code = self.bytecode.clone();
         let chunk = code.unwrap().get_function(function_id);
+
+        self.chunk = chunk.clone();
+
         let frame = Frame::new(chunk);
 
         self.frame_stack
@@ -837,6 +840,9 @@ impl VirtualMachine {
         let chunk = code.unwrap().v_tables[&v_table_id][method_id as usize]
             .chunk
             .clone();
+
+        self.chunk = chunk.clone();
+
         let frame = Frame::new(chunk);
 
         self.frame_stack
@@ -861,6 +867,8 @@ impl VirtualMachine {
 
     fn detach_fn(&mut self) {
         self.frame_stack.pop();
+        self.chunk = self.frame_stack.last().unwrap().borrow().chunk.clone();
+
         self.ip = self.frame_stack.last().unwrap().borrow().ip;
         self.sp = self.frame_stack.last().unwrap().borrow().sp;
         self.fp = self.frame_stack.last().unwrap().borrow().fp;
