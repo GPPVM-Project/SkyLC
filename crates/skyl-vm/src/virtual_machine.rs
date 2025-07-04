@@ -6,41 +6,15 @@ use std::{cell::RefCell, rc::Rc};
 use skyl_data::{
     CompilerConfig, Instruction,
     bytecode::{Bytecode, Chunk},
-    objects::{Instance, List, Value},
+    memory::GcRef,
+    objects::{Instance, List, Object, Value},
 };
 use skyl_driver::gpp_error;
 use skyl_ffi::{NativeBridge, NativeFnPtr, NativeFunction, NativeLibrary};
 
-#[derive(Debug)]
-struct Frame {
-    pub chunk: Rc<Chunk>,
-    pub sp: usize,
-    pub ip: usize,
-    pub fp: usize,
-}
+use crate::{frame::Frame, heap::Heap};
 
-impl Frame {
-    fn new(chunk: Rc<Chunk>) -> Self {
-        Self {
-            chunk,
-            sp: 0,
-            ip: 0,
-            fp: 0,
-        }
-    }
-
-    pub fn set_ip(&mut self, ip: usize) {
-        self.ip = ip;
-    }
-
-    pub fn set_sp(&mut self, sp: usize) {
-        self.sp = sp;
-    }
-
-    pub fn set_fp(&mut self, fp: usize) {
-        self.fp = fp;
-    }
-}
+const INITIAL_HEAP_SIZE: usize = 1024; // 1KB
 
 #[derive(Debug)]
 pub struct VirtualMachine {
@@ -54,6 +28,7 @@ pub struct VirtualMachine {
     frame_stack: Vec<RefCell<Frame>>,
     chunk: Rc<Chunk>,
     unsafe_mode: bool,
+    heap: Heap,
 }
 
 impl NativeBridge for VirtualMachine {
@@ -86,7 +61,9 @@ impl NativeBridge for VirtualMachine {
 
 impl VirtualMachine {
     pub fn new(config: &CompilerConfig) -> Self {
-        Self {
+        let heap = Heap::new(INITIAL_HEAP_SIZE);
+
+        let vm = Self {
             ip: 0,
             sp: 0,
             fp: 0,
@@ -97,7 +74,10 @@ impl VirtualMachine {
             native_functions: Vec::new(),
             bytecode: None,
             unsafe_mode: true,
-        }
+            heap,
+        };
+
+        vm
     }
 
     #[inline]
@@ -381,8 +361,7 @@ impl VirtualMachine {
 
         if let Value::Object(obj_ptr) = object {
             self.push(
-                obj_ptr
-                    .borrow()
+                unsafe { obj_ptr.borrow() }
                     .as_any()
                     .downcast_ref::<Instance>()
                     .unwrap()
@@ -394,12 +373,11 @@ impl VirtualMachine {
 
     pub fn handle_set_field(&mut self) {
         let value = self.pop();
-        let object = self.pop();
+        let mut object = self.pop();
         let index = self.read_byte();
 
-        if let Value::Object(obj_ptr) = &object {
-            obj_ptr
-                .borrow_mut()
+        if let Value::Object(obj_ptr) = &mut object {
+            unsafe { obj_ptr.borrow_mut() }
                 .as_any_mut()
                 .downcast_mut::<Instance>()
                 .unwrap()
@@ -418,7 +396,8 @@ impl VirtualMachine {
             .cloned()
             .collect::<Vec<_>>();
 
-        self.push(Value::Object(Rc::new(RefCell::new(Instance::new(fields)))));
+        let obj = self.allocate_object(Instance::new(fields));
+        self.push(Value::Object(obj));
     }
 
     #[inline]
@@ -431,7 +410,7 @@ impl VirtualMachine {
             Value::Float(f) => println!("{}", f),
             Value::String(s) => println!("{}", s),
             Value::Object(obj) => {
-                println!("{}", obj.borrow().to_string());
+                println!("{}", unsafe { obj.borrow() }.to_string());
             }
             _ => todo!(),
         }
@@ -616,7 +595,7 @@ impl VirtualMachine {
         let list = self.pop();
 
         if let Value::Object(obj_ptr) = list {
-            let instance = obj_ptr.borrow();
+            let instance = unsafe { obj_ptr.borrow() };
             let list = instance.as_any().downcast_ref::<List>().unwrap();
 
             if let Value::Int(i) = index {
@@ -647,7 +626,14 @@ impl VirtualMachine {
             elements.push(self.stack[self.sp + i].clone());
         }
 
-        self.push(Value::Object(Rc::new(RefCell::new(List::new(elements)))));
+        let list = self.allocate_object(List::new(elements));
+        self.push(Value::Object(list));
+    }
+
+    fn allocate_object<T: Object + 'static>(&mut self, obj: T) -> GcRef {
+        self.heap.allocate(obj, |heap| {
+            heap.collect_garbage(&mut self.stack);
+        })
     }
 
     fn invalidate_native_call(_: Vec<Value>) -> Value {
@@ -687,8 +673,14 @@ impl VirtualMachine {
 
         self.execution_loop();
 
+        self.heap.clear();
+
         if self.config.verbose {
             println!("Virtual machine took: {:?}", timer.elapsed());
+            println!(
+                "Heap finished with: {} allocated bytes.",
+                self.heap.allocated_bytes()
+            );
         }
     }
 
@@ -791,7 +783,7 @@ impl VirtualMachine {
 
         for i in 0..self.sp {
             if let Value::Object(obj_ptr) = &self.stack[i] {
-                print!("{}, ", obj_ptr.borrow().to_string());
+                print!("{}, ", unsafe { obj_ptr.borrow() }.to_string());
             } else {
                 print!("{:?}, ", self.stack[i]);
             }

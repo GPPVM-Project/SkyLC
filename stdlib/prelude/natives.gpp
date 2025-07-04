@@ -3,7 +3,6 @@ native def len(x: list) -> int;
 native def int(x: str) -> int;
 native def random_range(low: int, high: int) -> int;
 native def append(x: list, value: object) -> void;
-native def args() -> list;
 native def exit(code: int) -> void;
 native def list_append(l: list, e: object) -> void;
 native def list_pop(l: list, i: int) -> void;

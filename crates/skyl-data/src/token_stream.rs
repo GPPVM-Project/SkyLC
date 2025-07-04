@@ -44,3 +44,9 @@ impl TokenStream {
         self.position -= 1;
     }
 }
+
+impl From<TokenStream> for Vec<Token> {
+    fn from(value: TokenStream) -> Self {
+        value.tokens
+    }
+}

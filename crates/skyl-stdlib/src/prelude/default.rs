@@ -58,19 +58,6 @@ impl GPPDefaultFunctionsNativeLibrary {
         unreachable!()
     }
 
-    fn args(_args: Vec<Value>) -> Value {
-        let args: Vec<String> = env::args().into_iter().collect();
-        let mut elements: Vec<Value> = Vec::new();
-
-        for i in 5..args.len() {
-            elements.push(Value::String(Rc::new(args[i].clone())));
-        }
-
-        let list = List::new(elements);
-
-        Value::Object(Rc::new(RefCell::new(list)))
-    }
-
     fn sleep(args: Vec<Value>) -> Value {
         if let Value::Int(i) = args[0] {
             sleep(Duration::from_millis(i as u64));
@@ -90,9 +77,6 @@ impl GPPDefaultFunctionsNativeLibrary {
 
 impl NativeLibrary for GPPDefaultFunctionsNativeLibrary {
     fn register_functions(&self, bridge: &mut dyn NativeBridge) {
-        register_native_funcs!(
-            bridge,
-            [exception, int, float, bool, args, exit, now_ms, sleep,]
-        );
+        register_native_funcs!(bridge, [exception, int, float, bool, exit, now_ms, sleep,]);
     }
 }

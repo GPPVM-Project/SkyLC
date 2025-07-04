@@ -7,6 +7,7 @@ mod descriptors;
 mod expressions;
 mod instructions;
 mod ir_types;
+pub mod memory;
 pub mod objects;
 mod reader;
 mod semantic_types;

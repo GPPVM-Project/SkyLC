@@ -2,7 +2,6 @@ native def str_eq(a: str, b: str) -> bool;
 native def str_to_upper(a: str) -> str;
 native def str_to_lower(a: str) -> str;
 native def str_replace(a: str, from: str, to: str) -> str;
-native def str_split(a: str, delim: str) -> list;
 native def str_starts_with(a: str, b: str) -> bool;
 native def str_ends_with(a: str, b: str) -> bool;
 native def str_contains(a: str, b: str) -> bool;
@@ -10,10 +9,6 @@ native def str_find(haystack: str, needle: str) -> int;
 native def str_slice(s: str, start: int, end: int) -> str;
 native def str_concat(a: str, b: str) -> str;
 native def str_len(s: str) -> int;
-
-internal def split(self: str, pattern: str) -> list {
-    return str_split(self, pattern);
-}
 
 internal def contains(self: str, substr: str) -> bool {
     return str_contains(self, substr);

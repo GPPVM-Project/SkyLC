@@ -6,8 +6,7 @@ pub struct GPPListLibrary;
 impl GPPListLibrary {
     fn list_len(args: Vec<Value>) -> Value {
         if let Value::Object(obj_ptr) = &args[0] {
-            let len = obj_ptr
-                .borrow()
+            let len = unsafe { obj_ptr.borrow() }
                 .as_any()
                 .downcast_ref::<List>()
                 .unwrap()
@@ -22,8 +21,7 @@ impl GPPListLibrary {
     fn list_append(args: Vec<Value>) -> Value {
         if let Value::Object(obj_ptr) = &args[0] {
             let value = &args[1];
-            obj_ptr
-                .borrow_mut()
+            unsafe { obj_ptr.obj.as_mut().unwrap() }
                 .as_any_mut()
                 .downcast_mut::<List>()
                 .unwrap()
@@ -41,8 +39,7 @@ impl GPPListLibrary {
             let value = &args[1];
 
             if let Value::Int(i) = value {
-                obj_ptr
-                    .borrow_mut()
+                unsafe { obj_ptr.obj.as_mut().unwrap() }
                     .as_any_mut()
                     .downcast_mut::<List>()
                     .unwrap()

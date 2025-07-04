@@ -130,19 +130,6 @@ impl GPPStringNativeLibrary {
 
         Value::Void
     }
-
-    fn str_split(args: Vec<Value>) -> Value {
-        match (&args[0], &args[1]) {
-            (Value::String(a), Value::String(delim)) => {
-                let parts = a.split(&**delim);
-                let elements: Vec<Value> = parts
-                    .map(|s| Value::String(Rc::new(s.to_string())))
-                    .collect();
-                Value::Object(Rc::new(RefCell::new(List::new(elements))))
-            }
-            _ => unreachable!("str_split expects two strings"),
-        }
-    }
 }
 
 impl NativeLibrary for GPPStringNativeLibrary {
@@ -159,7 +146,6 @@ impl NativeLibrary for GPPStringNativeLibrary {
                 str_to_lower,
                 str_replace,
                 str_concat,
-                str_split,
                 str_find,
                 str_slice
             ]

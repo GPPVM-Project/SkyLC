@@ -28,7 +28,7 @@ impl VirtualFunction {
 
 #[derive(Clone, Debug)]
 pub struct Bytecode {
-    functions: HashMap<u32, VirtualFunction>,
+    pub functions: HashMap<u32, VirtualFunction>,
     pub native_functions: HashMap<String, NativeFunctionInfo>,
     pub v_tables: HashMap<u32, Vec<VirtualFunction>>,
     pub main: Option<VirtualFunction>,
