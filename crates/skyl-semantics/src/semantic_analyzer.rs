@@ -16,7 +16,7 @@ use std::{
 use skyl_data::{
     AnnotatedAST, AnnotatedExpression, AnnotatedStatement, Archetype, CompilerConfig, ContextScope,
     ContextStack, Expression, FieldDeclaration, FieldDescriptor, FunctionPrototype, Literal,
-    MethodDescriptor, MethodParameter, OperatorKind, SemanticCode, SemanticValue, Statement,
+    MethodDescriptor, MethodParameter, OperatorKind, SemanticCode, SemanticValue, Span, Statement,
     StaticValue, SymbolKind, SymbolTable, Token, TokenKind, TypeDecl, TypeDescriptor, ValueWrapper,
     read_file_without_bom,
 };
@@ -401,7 +401,7 @@ impl SemanticAnalyzer {
         let iterator_kind: Rc<RefCell<TypeDescriptor>>;
 
         match condition {
-            Expression::Variable(variable) => {
+            Expression::Variable(variable, span) => {
                 self.assert_archetype_kind(
                     condition,
                     self.get_static_kind_by_name("iterator"),
@@ -412,7 +412,7 @@ impl SemanticAnalyzer {
                 annotated_iterator = self.analyze_expr(condition);
             }
 
-            Expression::Call(callee, paren, args) => {
+            Expression::Call(callee, paren, args, span) => {
                 iterator_kind = self.resolve_function_return_type(callee, paren, args);
                 self.assert_kind_equals(
                     iterator_kind.clone(),
@@ -566,7 +566,7 @@ impl SemanticAnalyzer {
         let mut type_fields: HashMap<String, FieldDescriptor> = HashMap::new();
 
         for (index, field) in fields.iter().enumerate() {
-            if let Expression::TypeComposition(mask) = field.kind.clone() {
+            if let Expression::TypeComposition(mask, span) = field.kind.clone() {
                 let kind = self.resolve_type_composition(&mask);
                 let archetypes: Vec<Archetype> =
                     kind.borrow().archetypes.clone().into_iter().collect();
@@ -679,7 +679,7 @@ impl SemanticAnalyzer {
 
         let mut kind: Rc<RefCell<TypeDescriptor>>;
 
-        if let Expression::TypeComposition(mask) = return_kind {
+        if let Expression::TypeComposition(mask, span) = return_kind {
             kind = self.resolve_type_composition(mask);
         } else {
             kind = self.get_static_kind_by_name("void");
@@ -970,33 +970,43 @@ impl SemanticAnalyzer {
     fn analyze_expr(&mut self, expr: &Expression) -> AnnotatedExpression {
         match expr.clone() {
             Expression::Void => AnnotatedExpression::Void,
-            Expression::Literal(token) => self.analyze_literal(token),
-            Expression::PostFix(operator, variable) => {
+            Expression::Literal(token, span) => self.analyze_literal(token),
+            Expression::PostFix(operator, variable, span) => {
                 self.analyze_postfix_expr(&operator, &variable)
             }
-            Expression::Unary(token, expression) => self.analyze_unary_expr(token, &expression),
-            Expression::Arithmetic(left, op, right) => {
+            Expression::Unary(token, expression, span) => {
+                self.analyze_unary_expr(token, &expression)
+            }
+            Expression::Arithmetic(left, op, right, span) => {
                 self.analyze_arithmetic_expr(&left, &op, &right)
             }
-            Expression::Logical(left, op, right) => self.analyze_logical_expr(&left, &op, &right),
-            Expression::Ternary(expression, expression1, expression2) => todo!(),
-            Expression::Assign(token, expression) => {
+            Expression::Logical(left, op, right, span) => {
+                self.analyze_logical_expr(&left, &op, &right)
+            }
+            Expression::Ternary(expression, expression1, expression2, span) => todo!(),
+            Expression::Assign(token, expression, span) => {
                 self.analyze_assignment_expr(token, &expression)
             }
             Expression::Lambda => todo!(),
-            Expression::Get(expression, token) => self.analyze_get_expr(&expression, token),
-            Expression::Variable(token) => self.analyze_variable_get_expr(token),
-            Expression::Set(target, name, value) => self.analyze_set_expr(target, name, value),
-            Expression::Call(callee, paren, args) => {
+            Expression::Get(expression, token, span) => self.analyze_get_expr(&expression, token),
+            Expression::Variable(token, span) => self.analyze_variable_get_expr(token),
+            Expression::Set(target, name, value, span) => {
+                self.analyze_set_expr(target, name, value)
+            }
+            Expression::Call(callee, paren, args, span) => {
                 self.analyze_call_expression(&callee, &paren, &args)
             }
-            Expression::Tuple(expressions) => todo!(),
-            Expression::List(expressions) => self.analyze_collection(expr),
-            Expression::TypeComposition(names) => todo!(),
-            Expression::Attribute(token, expressions) => self.analyze_attribute(token, expressions),
-            Expression::Group(expression) => self.analyze_expr(&expression),
-            Expression::ListGet(expression, index) => self.analyze_list_get_expr(expression, index),
-            Expression::ListSet(list, index, value) => {
+            Expression::Tuple(expressions, span) => todo!(),
+            Expression::List(expressions, span) => self.analyze_collection(expr),
+            Expression::TypeComposition(names, span) => todo!(),
+            Expression::Attribute(token, expressions, span) => {
+                self.analyze_attribute(token, expressions)
+            }
+            Expression::Group(expression, span) => self.analyze_expr(&expression),
+            Expression::ListGet(expression, index, span) => {
+                self.analyze_list_get_expr(expression, index)
+            }
+            Expression::ListSet(list, index, value, span) => {
                 self.analyze_list_set_expr(list, index, value)
             }
         }
@@ -1184,8 +1194,8 @@ impl SemanticAnalyzer {
     /// - If the expression type cannot be determined or is unsupported, an error is raised.
     fn resolve_expr_type(&mut self, expression: &Expression) -> Rc<RefCell<TypeDescriptor>> {
         match expression {
-            Expression::List(elements) => self.get_static_kind_by_name("list"),
-            Expression::Literal(token) => match token.kind {
+            Expression::List(elements, span) => self.get_static_kind_by_name("list"),
+            Expression::Literal(token, span) => match token.kind {
                 TokenKind::Identifier => self.resolve_identifier_type(token),
                 TokenKind::Literal(literal) => match literal {
                     Literal::String => self.get_symbol("str").unwrap().kind.clone(),
@@ -1195,8 +1205,8 @@ impl SemanticAnalyzer {
                 },
                 _ => gpp_error!("Expect literal in line {}.", token.line),
             },
-            Expression::Unary(_, expression) => self.resolve_expr_type(&expression),
-            Expression::Arithmetic(left, op, right) => {
+            Expression::Unary(_, expression, span) => self.resolve_expr_type(&expression),
+            Expression::Arithmetic(left, op, right, span) => {
                 if let TokenKind::Operator(operator) = op.kind {
                     match operator {
                         OperatorKind::Plus
@@ -1220,7 +1230,7 @@ impl SemanticAnalyzer {
 
                 gpp_error!("Invalid arithmetic operator.");
             }
-            Expression::Logical(left, _, _) => {
+            Expression::Logical(left, _, _, span) => {
                 let left_type = self.resolve_expr_type(&left);
 
                 if left_type != self.get_symbol("bool").unwrap().kind {
@@ -1228,7 +1238,7 @@ impl SemanticAnalyzer {
                 }
                 left_type
             }
-            Expression::Ternary(cond, true_expr, false_expr) => {
+            Expression::Ternary(cond, true_expr, false_expr, span) => {
                 let cond_type = self.resolve_expr_type(&cond);
                 let true_type = self.resolve_expr_type(&true_expr);
                 let false_type = self.resolve_expr_type(&false_expr);
@@ -1238,19 +1248,19 @@ impl SemanticAnalyzer {
                 }
                 true_type
             }
-            Expression::Variable(name) => self.resolve_identifier_type(name),
-            Expression::Assign(_, expr) => self.resolve_expr_type(expr),
+            Expression::Variable(name, span) => self.resolve_identifier_type(name),
+            Expression::Assign(_, expr, span) => self.resolve_expr_type(expr),
             Expression::Lambda => {
                 gpp_error!("Lambda expressions are currently not supported.")
             }
-            Expression::TypeComposition(mask) => self.resolve_type_composition(mask),
-            Expression::Call(callee, paren, args) => {
+            Expression::TypeComposition(mask, span) => self.resolve_type_composition(mask),
+            Expression::Call(callee, paren, args, span) => {
                 self.resolve_function_return_type(callee, paren, args)
             }
-            Expression::Get(object, token) => self.resolve_get_expr(object, token),
-            Expression::Group(expression) => self.resolve_expr_type(&expression),
+            Expression::Get(object, token, span) => self.resolve_get_expr(object, token),
+            Expression::Group(expression, span) => self.resolve_expr_type(&expression),
             Expression::Void => self.get_void_instance(),
-            Expression::ListGet(list, index) => self.resolve_list_get_type(list, index),
+            Expression::ListGet(list, index, span) => self.resolve_list_get_type(list, index),
             _ => gpp_error!("Expression {expression:?} are not supported."),
         }
     }
@@ -1586,10 +1596,10 @@ impl SemanticAnalyzer {
         let annotated_left;
         let annotated_right;
 
-        if !matches!(left, Expression::Literal(literal)) {
+        if !matches!(left, Expression::Literal(literal, span)) {
             annotated_left = self.analyze_expr(&left);
         } else {
-            if let Expression::Literal(l) = left {
+            if let Expression::Literal(l, span) = left {
                 annotated_left = self.analyze_literal(l.clone());
             } else {
                 gpp_error!(
@@ -1600,10 +1610,10 @@ impl SemanticAnalyzer {
             }
         }
 
-        if !matches!(right, Expression::Literal(literal)) {
+        if !matches!(right, Expression::Literal(literal, span)) {
             annotated_right = self.analyze_expr(&right);
         } else {
-            if let Expression::Literal(l) = right {
+            if let Expression::Literal(l, span) = right {
                 annotated_right = self.analyze_literal(l.clone());
             } else {
                 gpp_error!(
@@ -1805,7 +1815,7 @@ impl SemanticAnalyzer {
     fn analyze_collection(&mut self, collection: &Expression) -> AnnotatedExpression {
         let kind = self.resolve_iterator_kind(collection);
 
-        if let Expression::List(elements) = collection {
+        if let Expression::List(elements, span) = collection {
             let mut annotated_elements = Vec::new();
 
             for element in elements {
@@ -1848,7 +1858,7 @@ impl SemanticAnalyzer {
             annotated_args.push(Box::new(self.analyze_expr(arg)));
         }
 
-        if let Expression::Variable(name) = callee {
+        if let Expression::Variable(name, span) = callee {
             if self.current_symbol.clone() == name.lexeme.clone() {
                 gpp_error!(
                     "Recursive calls are not allowed in current version. At line {}.",
@@ -1909,7 +1919,7 @@ impl SemanticAnalyzer {
             }
         } else {
             match callee {
-                Expression::Get(callee, token) => {
+                Expression::Get(callee, token, span) => {
                     let method = self.analyze_method_get(&callee, token.clone());
                     let mut annotated_args: Vec<Box<AnnotatedExpression>> = Vec::new();
 
@@ -1954,7 +1964,7 @@ impl SemanticAnalyzer {
                     );
                 }
 
-                Expression::Literal(token) => {
+                Expression::Literal(token, span) => {
                     let literal_kind = self.resolve_literal_kind(token);
                     println!("{:?}", literal_kind);
                 }
@@ -2011,7 +2021,7 @@ impl SemanticAnalyzer {
         args: &Vec<Expression>,
     ) -> Rc<RefCell<TypeDescriptor>> {
         match callee {
-            Expression::Variable(name) => {
+            Expression::Variable(name, span) => {
                 let mut function = self.symbol_table.get_function(&name.lexeme.clone());
 
                 if let None = function {
@@ -2028,7 +2038,7 @@ impl SemanticAnalyzer {
                     ),
                 }
             }
-            Expression::Get(callee, name) => self.resolve_get_expr(&callee, name),
+            Expression::Get(callee, name, span) => self.resolve_get_expr(&callee, name),
             _ => {
                 gpp_error!(
                     "Call functions inside modules are currently not allowed {}.",
@@ -2149,8 +2159,8 @@ impl SemanticAnalyzer {
         let expr_kind = self.resolve_expr_type(iterator);
 
         match iterator {
-            Expression::List(elements) => self.resolve_list_type(&elements),
-            Expression::Call(callee, paren, args) => {
+            Expression::List(elements, span) => self.resolve_list_type(&elements),
+            Expression::Call(callee, paren, args, span) => {
                 self.analyze_call_expression(callee, paren, args);
                 self.resolve_function_return_type(callee, paren, args)
             }
@@ -2410,12 +2420,12 @@ impl SemanticAnalyzer {
 
         let mut path = vec![token.clone()];
 
-        while let Expression::Get(expr, name) = current_expression {
+        while let Expression::Get(expr, name, span) = current_expression {
             path.push(name.clone());
             current_expression = expr;
         }
 
-        if let Expression::Variable(name) = current_expression {
+        if let Expression::Variable(name, span) = current_expression {
             path.push(name.clone());
         } else {
             current_kind = Some(self.resolve_expr_type(&current_expression).clone());
@@ -2523,19 +2533,19 @@ impl SemanticAnalyzer {
     /// ```
     fn analyze_get_expr(&mut self, expression: &Expression, token: Token) -> AnnotatedExpression {
         match expression {
-            Expression::Get(_, _) => AnnotatedExpression::Get(
+            Expression::Get(_, _, span) => AnnotatedExpression::Get(
                 Box::new(self.analyze_expr(expression)),
                 token.clone(),
                 self.resolve_expr_type(expression),
             ),
 
-            Expression::Variable(name) => AnnotatedExpression::Get(
+            Expression::Variable(name, span) => AnnotatedExpression::Get(
                 Box::new(self.analyze_expr(expression)),
                 token.clone(),
                 self.resolve_expr_type(expression),
             ),
 
-            Expression::Call(callee, paren, args) => {
+            Expression::Call(callee, paren, args, span) => {
                 let kind = self.resolve_expr_type(callee);
 
                 if kind.borrow().fields.contains_key(&token.lexeme) {
@@ -2678,7 +2688,7 @@ impl SemanticAnalyzer {
         operator: &Token,
         variable: &Expression,
     ) -> AnnotatedExpression {
-        if let Expression::Variable(name) = variable {
+        if let Expression::Variable(name, span) = variable {
             let kind = self.resolve_identifier_type(name);
 
             if !kind
@@ -2736,8 +2746,8 @@ impl SemanticAnalyzer {
         index: &Expression,
     ) -> Rc<RefCell<TypeDescriptor>> {
         match list {
-            Expression::List(elements) => self.resolve_list_type(elements),
-            Expression::Variable(name) => self.resolve_identifier_type(name),
+            Expression::List(elements, span) => self.resolve_list_type(elements),
+            Expression::Variable(name, span) => self.resolve_identifier_type(name),
             _ => gpp_error!("Cannot resolve list type for {}.", list),
         }
     }
@@ -2765,7 +2775,7 @@ impl SemanticAnalyzer {
 
         let mut kind: Rc<RefCell<TypeDescriptor>>;
 
-        if let Expression::TypeComposition(mask) = return_kind {
+        if let Expression::TypeComposition(mask, span) = return_kind {
             kind = self.resolve_type_composition(mask);
         } else {
             kind = self.get_static_kind_by_name("void");
@@ -2878,7 +2888,7 @@ impl SemanticAnalyzer {
         self.current_symbol_kind = SymbolKind::InternalDefinition;
 
         let kind: Rc<RefCell<TypeDescriptor>> =
-            if let Expression::TypeComposition(mask) = return_kind {
+            if let Expression::TypeComposition(mask, span) = return_kind {
                 self.resolve_type_composition(mask)
             } else {
                 let void_kind = self.get_static_kind_by_name("void");
@@ -2994,8 +3004,11 @@ impl SemanticAnalyzer {
                     SemanticValue::new(Some(field_kind), ValueWrapper::Internal, field.line),
                 );
 
-                let get_kind =
-                    self.resolve_expr_type(&Expression::Get(Rc::new(value.clone()), field.clone()));
+                let get_kind = self.resolve_expr_type(&Expression::Get(
+                    Rc::new(value.clone()),
+                    field.clone(),
+                    field.span,
+                ));
 
                 let field_get = AnnotatedExpression::Get(
                     Box::new(self.analyze_expr(value)),
@@ -3137,7 +3150,13 @@ impl SemanticAnalyzer {
         let mut tokens: Vec<Token> = Vec::new();
 
         for p in path {
-            tokens.push(Token::new(TokenKind::Identifier, (*p).into(), 1, 0));
+            tokens.push(Token::new(
+                TokenKind::Identifier,
+                (*p).into(),
+                1,
+                0,
+                Span { start: 0, end: 0 },
+            ));
         }
 
         tokens

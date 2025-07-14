@@ -6,3 +6,4 @@ edition = "2024"
 [dependencies]
 skyl-data = { path = "../skyl-data" }
 skyl-driver = { path = "../skyl-driver" }
+skyl-lexer = { path = "../skyl-lexer" }

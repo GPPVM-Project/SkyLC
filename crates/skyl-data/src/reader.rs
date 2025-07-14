@@ -16,3 +16,5 @@ pub fn read_file_without_bom(path: &str) -> io::Result<String> {
 
     Ok(content)
 }
+
+pub struct SourceFile {}

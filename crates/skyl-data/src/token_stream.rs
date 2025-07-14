@@ -34,6 +34,7 @@ impl TokenStream {
                 "\0".into(),
                 self.tokens.last().unwrap().line,
                 self.tokens.last().unwrap().column,
+                self.tokens.last().unwrap().span.clone(),
             );
         }
 

@@ -92,6 +92,21 @@ pub enum Literal {
     Boolean,
 }
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct Span {
+    pub start: usize,
+    pub end: usize,
+}
+
+impl Span {
+    pub fn merge(&self, other: Span) -> Span {
+        Span {
+            start: self.start.min(other.start),
+            end: self.end.max(other.end),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[allow(dead_code)]
 pub struct Token {
@@ -99,6 +114,7 @@ pub struct Token {
     pub lexeme: String,
     pub line: usize,
     pub column: usize,
+    pub span: Span,
 }
 
 impl Display for Token {
@@ -108,12 +124,13 @@ impl Display for Token {
 }
 
 impl Token {
-    pub fn new(kind: TokenKind, lexeme: String, line: usize, column: usize) -> Self {
+    pub fn new(kind: TokenKind, lexeme: String, line: usize, column: usize, span: Span) -> Self {
         Token {
             kind,
             lexeme,
             line,
             column,
+            span,
         }
     }
 }

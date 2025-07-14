@@ -1,7 +1,7 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use skyl_data::{
-    KeywordKind, Literal, OperatorKind, PunctuationKind, Token, TokenKind, TokenStream,
+    KeywordKind, Literal, OperatorKind, PunctuationKind, Span, Token, TokenKind, TokenStream,
 };
 use skyl_driver::errors::{CompilationError, CompilerErrorReporter};
 
@@ -352,7 +352,11 @@ impl Lexer {
     }
 
     fn make_token_with_lexeme(&mut self, kind: TokenKind, lexeme: String) {
-        let token = Token::new(kind, lexeme, self.line, self.column);
+        let span = Span {
+            start: self.start,
+            end: self.start + self.length,
+        };
+        let token = Token::new(kind, lexeme, self.line, self.column, span);
         self.tokens.push(token);
     }
 
