@@ -7,7 +7,7 @@ mod tests {
     use skyl_lexer::Lexer;
 
     fn generate_error_reporter() -> Rc<RefCell<CompilerErrorReporter>> {
-        return Rc::new(RefCell::new(CompilerErrorReporter::new()));
+        return Rc::new(RefCell::new(CompilerErrorReporter::empty()));
     }
 
     #[test]

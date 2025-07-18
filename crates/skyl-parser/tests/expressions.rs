@@ -8,7 +8,7 @@ mod tests {
     use skyl_parser::Parser;
 
     fn parse(source: String) -> (Ast, Rc<RefCell<CompilerErrorReporter>>) {
-        let reporter = Rc::new(RefCell::new(CompilerErrorReporter::new()));
+        let reporter = Rc::new(RefCell::new(CompilerErrorReporter::empty()));
         let mut lexer = Lexer::new(source);
         let tokens = lexer.scan_tokens(Rc::clone(&reporter));
         let mut parser = Parser::new();

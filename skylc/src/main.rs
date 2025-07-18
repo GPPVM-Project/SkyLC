@@ -32,15 +32,15 @@ fn main() -> Result<()> {
 }
 
 fn compile(args: &CompileArgs) -> Result<()> {
-    let reporter = Rc::new(RefCell::new(CompilerErrorReporter::new()));
-
-    let source_code =
+    let source_code = Rc::new(
         read_file_without_bom(args.input_file.to_str().unwrap()).with_context(|| {
-            format!(
-                "Falha ao ler o arquivo de entrada '{}'",
-                args.input_file.display()
-            )
-        })?;
+            format!("Failed to read input file: '{}'", args.input_file.display())
+        })?,
+    );
+
+    let reporter = Rc::new(RefCell::new(CompilerErrorReporter::new(Rc::clone(
+        &source_code,
+    ))));
 
     let stdlib_path = find_stdlib_path();
 
@@ -60,7 +60,7 @@ fn compile(args: &CompileArgs) -> Result<()> {
         .add_step::<IRGenerator>()
         .add_step::<BytecodeGenerator>();
 
-    let bytecode = pipeline.execute(source_code, &config, Rc::clone(&reporter));
+    let bytecode = pipeline.execute(source_code.content.clone(), &config, Rc::clone(&reporter));
 
     if reporter.borrow().has_errors() {
         handle_errors(&reporter.borrow());

@@ -66,7 +66,7 @@ impl IRGenerator {
     pub fn new() -> Self {
         Self {
             semantic_code: SemanticCode::new(SymbolTable::new(), AnnotatedAST::new(Vec::new())),
-            reporter: Rc::new(RefCell::new(CompilerErrorReporter::new())),
+            reporter: Rc::new(RefCell::new(CompilerErrorReporter::empty())),
             functions: HashMap::new(),
             kinds: HashMap::new(),
             methods: HashMap::new(),

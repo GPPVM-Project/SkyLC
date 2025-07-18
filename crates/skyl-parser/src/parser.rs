@@ -15,7 +15,7 @@ impl Parser {
     pub fn new() -> Self {
         Parser {
             stream: Default::default(),
-            reporter: Rc::new(RefCell::new(CompilerErrorReporter::new())),
+            reporter: Rc::new(RefCell::new(CompilerErrorReporter::empty())),
         }
     }
 
@@ -39,7 +39,7 @@ impl Parser {
             match stmt {
                 Ok(s) => statements.push(s),
                 Err(e) => {
-                    self.report_error(CompilationError::new(e.message, Some(e.line)));
+                    self.report_error(CompilationError::with_span(e.message, Some(e.line), e.span));
                     self.synchronize();
                 }
             }
@@ -178,6 +178,7 @@ impl Parser {
         Err(ParseError::new(
             "Invalid native declaration".to_string(),
             self.peek().line,
+            self.peek().span,
         ))
     }
 
@@ -189,6 +190,7 @@ impl Parser {
         Err(ParseError::new(
             "Invalid builtin declaration".to_string(),
             self.peek().line,
+            self.peek().span,
         ))
     }
 
@@ -637,6 +639,7 @@ impl Parser {
                 _ => Err(ParseError::new(
                     format!("Invalid keyword '{}'.", self.peek().lexeme),
                     self.peek().line,
+                    self.peek().span,
                 )),
             },
             TokenKind::Punctuation(punctuation) => match punctuation {
@@ -658,6 +661,7 @@ impl Parser {
         Err(ParseError {
             message: "'for' statements are currently not supported.".into(),
             line: self.previous().line,
+            span: self.peek().span,
         })
     }
 
@@ -806,6 +810,7 @@ impl Parser {
                     return Err(ParseError::new(
                         "Invalid assignment target.".to_string(),
                         equals.line,
+                        combined_span,
                     ));
                 }
             }
@@ -999,6 +1004,7 @@ impl Parser {
                     return Err(ParseError::new(
                         "Can't have more than 255 arguments.".to_string(),
                         self.peek().line,
+                        self.peek().span,
                     ));
                 }
                 arguments.push(self.expression()?);
@@ -1091,13 +1097,15 @@ impl Parser {
                     CollectionKind::Tuple,
                 ),
                 _ => Err(ParseError::new(
-                    format!("Invalid punctuation {:?}.", self.previous()),
+                    format!("Unexpected token '{}'.", self.previous().lexeme),
                     self.previous().line,
+                    self.previous().span,
                 )),
             },
             _ => Err(ParseError::new(
-                format!("Invalid expression {:?}.", self.peek()),
+                format!("Unexpected token '{}'.", self.peek().lexeme),
                 self.peek().line,
+                self.peek().span,
             )),
         }
     }
@@ -1160,7 +1168,11 @@ impl Parser {
     fn eat(&mut self, kind: TokenKind, msg: String) -> Result<Token, ParseError> {
         match self.try_eat(&[kind]) {
             true => Ok(self.previous()),
-            false => Err(ParseError::new(msg, self.peek().line)),
+            false => Err(ParseError::new(
+                msg,
+                self.previous().line,
+                self.previous().span,
+            )),
         }
     }
 

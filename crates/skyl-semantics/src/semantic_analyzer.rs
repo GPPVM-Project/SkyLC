@@ -60,7 +60,7 @@ impl SemanticAnalyzer {
             symbol_table: SymbolTable::new(),
             current_static_id: 1u32,
             current_symbol_kind: SymbolKind::None,
-            reporter: Rc::new(RefCell::new(CompilerErrorReporter::new())),
+            reporter: Rc::new(RefCell::new(CompilerErrorReporter::empty())),
             void_instance: Rc::new(RefCell::new(TypeDescriptor::empty())),
         };
         let mut archetypes = HashSet::new();
@@ -475,10 +475,9 @@ impl SemanticAnalyzer {
 
         match ctx_name {
             Some(sm) => gpp_error!(
-                "The name '{}' was previous declared in current scope.\nPrevious declaration at line {}.\nMultiple declarations of '{}' within the same scope are not allowed.",
+                "The name '{}' was previous declared in current scope. Previous declaration at line {}.",
                 name.lexeme,
                 sm.line,
-                name.lexeme
             ),
             None => match value {
                 Some(expr) => {
@@ -3104,7 +3103,11 @@ impl SemanticAnalyzer {
         }
 
         let mut import_pipeline = ModuleImportPipeline::get();
-        let ast = import_pipeline.execute(source, &self.config.clone(), Rc::clone(&self.reporter));
+        let ast = import_pipeline.execute(
+            source.content.clone(),
+            &self.config.clone(),
+            Rc::clone(&self.reporter),
+        );
 
         let mut imported_annotated_stmts = Vec::new();
 

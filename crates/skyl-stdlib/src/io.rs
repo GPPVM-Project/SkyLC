@@ -93,7 +93,7 @@ impl GPPStdIOLibrary {
             let path = Self::get_full_path(path.to_string());
 
             match read_file_without_bom(&path.to_str().unwrap()) {
-                Ok(content) => Value::String(Rc::new(content)),
+                Ok(file) => Value::String(Rc::new(file.content)),
                 Err(e) => {
                     gpp_error!("Cannot read file '{}': {}", path.to_str().unwrap(), e);
                 }

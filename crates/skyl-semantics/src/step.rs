@@ -25,7 +25,7 @@ impl Default for SemanticAnalyzer {
             symbol_table: SymbolTable::new(),
             current_static_id: 1u32,
             current_symbol_kind: SymbolKind::None,
-            reporter: Rc::new(RefCell::new(CompilerErrorReporter::new())),
+            reporter: Rc::new(RefCell::new(CompilerErrorReporter::empty())),
             void_instance: Rc::new(RefCell::new(TypeDescriptor::empty())),
         };
 

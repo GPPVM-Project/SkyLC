@@ -18,7 +18,7 @@ impl Default for Lexer {
             length: Default::default(),
             tokens: Default::default(),
             keywords: Default::default(),
-            reporter: Rc::new(RefCell::new(CompilerErrorReporter::new())),
+            reporter: Rc::new(RefCell::new(CompilerErrorReporter::empty())),
         }
     }
 }

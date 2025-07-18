@@ -12,7 +12,7 @@ impl Default for Parser {
     fn default() -> Self {
         Self {
             stream: Default::default(),
-            reporter: Rc::new(RefCell::new(CompilerErrorReporter::new())),
+            reporter: Rc::new(RefCell::new(CompilerErrorReporter::empty())),
         }
     }
 }

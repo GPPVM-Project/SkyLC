@@ -78,7 +78,7 @@ impl Lexer {
             length: 0,
             tokens: Vec::new(),
             keywords: create_keywords(),
-            reporter: Rc::new(RefCell::new(CompilerErrorReporter::new())),
+            reporter: Rc::new(RefCell::new(CompilerErrorReporter::empty())),
         }
     }
 
@@ -91,7 +91,7 @@ impl Lexer {
             start: 0,
             tokens: Vec::new(),
             keywords: create_keywords(),
-            reporter: Rc::new(RefCell::new(CompilerErrorReporter::new())),
+            reporter: Rc::new(RefCell::new(CompilerErrorReporter::empty())),
         }
     }
 

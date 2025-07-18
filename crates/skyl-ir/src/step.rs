@@ -11,7 +11,7 @@ impl Default for IRGenerator {
     fn default() -> Self {
         Self {
             semantic_code: SemanticCode::new(SymbolTable::new(), AnnotatedAST::new(Vec::new())),
-            reporter: Rc::new(RefCell::new(CompilerErrorReporter::new())),
+            reporter: Rc::new(RefCell::new(CompilerErrorReporter::empty())),
             functions: Default::default(),
             kinds: Default::default(),
             methods: Default::default(),
