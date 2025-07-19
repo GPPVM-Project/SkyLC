@@ -30,6 +30,42 @@ pub enum Expression {
 }
 
 impl Expression {
+    pub fn line(&self) -> usize {
+        match self {
+            Expression::Literal(token, _) => token.line,
+            Expression::Unary(token, _, _) => token.line,
+            Expression::PostFix(token, _, _) => token.line,
+            Expression::Arithmetic(left, _, _, _) => left.line(),
+            Expression::Logical(left, _, _, _) => left.line(),
+            Expression::Ternary(cond, _, _, _) => cond.line(),
+            Expression::Assign(token, _, _) => token.line,
+            Expression::Lambda => panic!("Lambda expression has no line information"),
+            Expression::Get(expr, _, _) => expr.line(),
+            Expression::Variable(token, _) => token.line,
+            Expression::Set(expr, _, _, _) => expr.line(),
+            Expression::Call(expr, _, _, _) => expr.line(),
+            Expression::Tuple(values, _) => values
+                .first()
+                .expect("Empty tuple expression has no elements")
+                .line(),
+            Expression::List(values, _) => values
+                .first()
+                .expect("Empty list expression has no elements")
+                .line(),
+            Expression::TypeComposition(tokens, _) => {
+                tokens
+                    .first()
+                    .expect("Empty type composition has no tokens")
+                    .line
+            }
+            Expression::Attribute(token, _, _) => token.line,
+            Expression::Group(expr, _) => expr.line(),
+            Expression::Void => 0,
+            Expression::ListGet(expr, _, _) => expr.line(),
+            Expression::ListSet(expr, _, _, _) => expr.line(),
+        }
+    }
+
     pub fn span(&self) -> Span {
         match self {
             Expression::Literal(_, span)
@@ -54,9 +90,7 @@ impl Expression {
             Expression::Lambda => {
                 unimplemented!("")
             }
-            Expression::Void => {
-                panic!("")
-            }
+            Expression::Void => Span { end: 0, start: 1 },
         }
     }
 }

@@ -380,7 +380,7 @@ mod tests {
         let errors = binding.get_errors();
 
         for (i, error) in errors.iter().enumerate() {
-            assert!(error.msg.contains(&error_msgs[i]))
+            unimplemented!();
         }
     }
 }

@@ -15,16 +15,38 @@ impl TokenStream {
     }
 
     pub fn previous(&self) -> Token {
+        if self.position - 1 >= self.tokens.len() {
+            let tk = self.tokens.last().unwrap().clone();
+            return Token::new(
+                TokenKind::EndOfFile,
+                "\0".into(),
+                tk.line,
+                tk.column,
+                tk.span,
+            );
+        }
+
         self.tokens[self.position - 1].clone()
     }
 
     pub fn current(&self) -> Token {
+        if self.position >= self.tokens.len() {
+            let tk = self.tokens.last().unwrap().clone();
+            return Token::new(
+                TokenKind::EndOfFile,
+                "\0".into(),
+                tk.line,
+                tk.column,
+                tk.span,
+            );
+        }
+
         self.tokens[self.position].clone()
     }
 
     pub fn advance(&mut self) -> Token {
         self.position += 1;
-        self.tokens[self.position - 1].clone()
+        self.previous()
     }
 
     pub fn look_ahead(&self, k: usize) -> Token {

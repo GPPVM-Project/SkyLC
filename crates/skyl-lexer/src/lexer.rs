@@ -3,7 +3,7 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 use skyl_data::{
     KeywordKind, Literal, OperatorKind, PunctuationKind, Span, Token, TokenKind, TokenStream,
 };
-use skyl_driver::errors::{CompilationError, CompilerErrorReporter};
+use skyl_driver::errors::{CompilationError, CompilationErrorKind, CompilerErrorReporter};
 
 #[derive(Debug)]
 pub struct Lexer {
@@ -226,9 +226,13 @@ impl Lexer {
                 _ => {
                     self.reporter
                         .borrow_mut()
-                        .report_error(CompilationError::new(
-                            format!("Invalid character '{}'", c),
+                        .report_error(CompilationError::with_span(
+                            CompilationErrorKind::IllegalCharacter(c),
                             Some(self.line),
+                            Span {
+                                start: self.start,
+                                end: self.start + self.length,
+                            },
                         ));
                 }
             },

@@ -1,4 +1,7 @@
+#![feature(default_field_values)]
+
 pub mod errors;
+pub mod format_err;
 
 use std::cell::RefCell;
 use std::rc::Rc;

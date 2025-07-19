@@ -1,5 +1,11 @@
+def foo() -> sss {
+    
+}
+
 def main() -> void {
-    println("Hello World");
-    let test_variable = 0;
-    let test_variable = 0;
+    let x = -1;
+
+    while x + 2 * 5 {
+
+    }
 }
