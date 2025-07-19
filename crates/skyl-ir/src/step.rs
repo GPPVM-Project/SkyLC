@@ -1,9 +1,11 @@
+use std::any::{type_name, Any};
 use std::{cell::RefCell, rc::Rc};
 
 use skyl_data::{
-    AnnotatedAST, CodeGraph, CompileTimeChunk, IntermediateCode, SemanticCode, SymbolTable,
+    AnnotatedAST, CodeGraph, CompileTimeChunk, CompilerConfig, IntermediateCode, SemanticCode,
+    SymbolTable,
 };
-use skyl_driver::{errors::CompilerErrorReporter, PipelineStep};
+use skyl_driver::{errors::CompilerErrorReporter, errors::PipelineError, PipelineStep};
 
 use crate::{ir_generator::CompileTimeStack, IRGenerator};
 
@@ -26,17 +28,18 @@ impl Default for IRGenerator {
 }
 
 impl PipelineStep for IRGenerator {
-    type Input = SemanticCode;
-
-    type Output = IntermediateCode;
-
     fn run(
         &mut self,
-        input: Self::Input,
-        _: &skyl_data::CompilerConfig,
+        input: Box<dyn Any>,
+        config: &CompilerConfig,
         reporter: Rc<RefCell<CompilerErrorReporter>>,
-    ) -> Result<Self::Output, skyl_driver::errors::PipelineError> {
-        let ir_code = self.generate(reporter, input);
-        Ok(ir_code)
+    ) -> Result<Box<dyn Any>, PipelineError> {
+        let semantic_code = input.downcast::<SemanticCode>().map_err(|_| {
+            PipelineError::new("[E1023] IRGenerator expected SemanticCode as input".into())
+        })?;
+
+        let ir = self.generate(reporter, *semantic_code);
+
+        Ok(Box::new(ir))
     }
 }

@@ -1,6 +1,7 @@
+use std::any::Any;
 use std::{cell::RefCell, rc::Rc};
 
-use skyl_data::{CompilerConfig, TokenStream};
+use skyl_data::CompilerConfig;
 use skyl_driver::{
     PipelineStep,
     errors::{CompilerErrorReporter, PipelineError},
@@ -24,16 +25,20 @@ impl Default for Lexer {
 }
 
 impl PipelineStep for Lexer {
-    type Input = String;
-    type Output = TokenStream;
-
     fn run(
         &mut self,
-        input: Self::Input,
-        _: &CompilerConfig,
+        input: Box<dyn Any>,
+        _config: &CompilerConfig,
         reporter: Rc<RefCell<CompilerErrorReporter>>,
-    ) -> Result<Self::Output, PipelineError> {
-        self.reset_internal_state(input);
-        Ok(self.scan_tokens(reporter))
+    ) -> Result<Box<dyn Any>, PipelineError> {
+        let source = input
+            .downcast::<String>()
+            .map_err(|_| PipelineError::new("Lexer esperava um String como entrada".into()))?;
+
+        self.reset_internal_state(*source);
+
+        let tokens = self.scan_tokens(reporter);
+
+        Ok(Box::new(tokens))
     }
 }

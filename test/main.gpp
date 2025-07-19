@@ -1,11 +1,17 @@
-def foo() -> sss {
-    
+import foo;
+
+type Vec3 {
+    x: float,
+    y: float,
+    z: float,
+}
+
+builtin attribute parallel(Vec3);
+
+internal def length(self: Vec3, x) -> int {
+
 }
 
 def main() -> void {
-    let x = -1;
 
-    while x + 2 * 5 {
-
-    }
 }

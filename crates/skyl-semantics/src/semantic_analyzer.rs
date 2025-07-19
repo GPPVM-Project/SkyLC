@@ -14,14 +14,13 @@ use std::{
 };
 
 use skyl_data::{
-    AnnotatedAST, AnnotatedExpression, AnnotatedStatement, Archetype, CompilerConfig, ContextScope,
-    ContextStack, Expression, FieldDeclaration, FieldDescriptor, FunctionPrototype, Literal,
-    MethodDescriptor, MethodParameter, OperatorKind, SemanticCode, SemanticValue, Span, Statement,
-    StaticValue, SymbolKind, SymbolTable, Token, TokenKind, TypeDecl, TypeDescriptor, ValueWrapper,
-    read_file_without_bom,
+    AnnotatedAST, AnnotatedExpression, AnnotatedStatement, Archetype, Ast, CompilerConfig,
+    ContextScope, ContextStack, Expression, FieldDeclaration, FieldDescriptor, FunctionPrototype,
+    Literal, MethodDescriptor, MethodParameter, OperatorKind, SemanticCode, SemanticValue, Span,
+    Statement, StaticValue, SymbolKind, SymbolTable, Token, TokenKind, TypeDecl, TypeDescriptor,
+    ValueWrapper, read_file_without_bom,
 };
 use skyl_driver::{
-    ExecutablePipeline,
     errors::{CompilationError, CompilationErrorKind, CompilerErrorReporter},
     gpp_error,
 };
@@ -633,11 +632,12 @@ impl SemanticAnalyzer {
                 }
 
                 if type_fields.contains_key(&field.name.lexeme) {
-                    return Err(CompilationError::new(
+                    return Err(CompilationError::with_span(
                         CompilationErrorKind::DuplicatedField {
                             field: field.name.lexeme.clone(),
                         },
                         Some(field.name.line),
+                        field.kind.span().merge(field.name.span),
                     ));
                 }
 
@@ -3072,11 +3072,15 @@ impl SemanticAnalyzer {
                     let expr_kind = self.resolve_expr_type(&expr)?;
 
                     if kind.borrow().id != expr_kind.borrow().id {
-                        gpp_error!(
-                            "Expect '{}' value, but got '{}'.",
-                            kind.borrow().name,
-                            expr_kind.borrow().name
-                        );
+                        return Err(CompilationError::with_span(
+                            CompilationErrorKind::ExpectType {
+                                expect: kind.borrow().name.clone(),
+                                found: expr_kind.borrow().name.clone(),
+                                compiler_msg: None,
+                            },
+                            Some(expr.line()),
+                            expr.span(),
+                        ));
                     }
                 }
             }
@@ -3388,15 +3392,19 @@ impl SemanticAnalyzer {
         }
 
         let mut import_pipeline = ModuleImportPipeline::get();
-        let ast = import_pipeline.execute(
-            source.content.clone(),
-            &self.config.clone(),
-            Rc::clone(&self.reporter),
-        );
+        let ast = import_pipeline
+            .execute(
+                source.content.clone(),
+                &self.config.clone(),
+                Rc::clone(&self.reporter),
+            )
+            .unwrap()
+            .downcast::<Ast>()
+            .unwrap();
 
         let mut imported_annotated_stmts = Vec::new();
 
-        for stmt in ast.unwrap().statements {
+        for stmt in ast.statements {
             imported_annotated_stmts.append(&mut self.analyze_stmt(&stmt)?);
         }
 

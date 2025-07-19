@@ -1,5 +1,7 @@
+use skyl_data::CompilerConfig;
 use skyl_data::{bytecode::Bytecode, IntermediateCode};
-use skyl_driver::PipelineStep;
+use skyl_driver::{errors::CompilerErrorReporter, errors::PipelineError, PipelineStep};
+use std::{any::Any, cell::RefCell, rc::Rc};
 
 use crate::bytecode_gen::BytecodeGenerator;
 
@@ -10,18 +12,18 @@ impl Default for BytecodeGenerator {
 }
 
 impl PipelineStep for BytecodeGenerator {
-    type Input = IntermediateCode;
-
-    type Output = Bytecode;
-
     fn run(
         &mut self,
-        input: Self::Input,
-        _: &skyl_data::CompilerConfig,
-        _: std::rc::Rc<std::cell::RefCell<skyl_driver::errors::CompilerErrorReporter>>,
-    ) -> Result<Self::Output, skyl_driver::errors::PipelineError> {
-        let bytecode = self.generate(input);
+        input: Box<dyn Any>,
+        _config: &CompilerConfig,
+        _reporter: Rc<RefCell<CompilerErrorReporter>>,
+    ) -> Result<Box<dyn Any>, PipelineError> {
+        let intermediate_code = input.downcast::<IntermediateCode>().map_err(|_| {
+            PipelineError::new("BytecodeGenerator expected IntermediateCode as input".into())
+        })?;
 
-        Ok(bytecode)
+        let bytecode = self.generate(*intermediate_code);
+
+        Ok(Box::new(bytecode))
     }
 }

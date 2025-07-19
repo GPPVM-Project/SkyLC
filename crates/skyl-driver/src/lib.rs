@@ -1,103 +1,48 @@
-#![feature(default_field_values)]
-
-pub mod errors;
-pub mod format_err;
-
 use std::cell::RefCell;
 use std::rc::Rc;
 
 use skyl_data::CompilerConfig;
 
+pub mod errors;
+pub mod format_err;
+
 use crate::errors::{handle_errors, CompilerErrorReporter, PipelineError};
 
-pub trait PipelineStep: Default {
-    type Input;
-    type Output;
-
+pub trait PipelineStep {
     fn run(
         &mut self,
-        input: Self::Input,
+        input: Box<dyn std::any::Any>,
         config: &CompilerConfig,
         reporter: Rc<RefCell<CompilerErrorReporter>>,
-    ) -> Result<Self::Output, PipelineError>;
+    ) -> Result<Box<dyn std::any::Any>, PipelineError>;
 }
 
-pub trait ExecutablePipeline<Input> {
-    type Output;
-    fn execute(
-        &mut self,
-        input: Input,
-        config: &CompilerConfig,
-        reporter: Rc<RefCell<CompilerErrorReporter>>,
-    ) -> Result<Self::Output, PipelineError>;
+pub struct Pipeline {
+    stages: Vec<Box<dyn PipelineStep>>,
 }
 
-pub struct PipelineBuilder;
-
-impl PipelineBuilder {
-    pub fn new<S>() -> ChainedPipeline<InitialStep, S>
-    where
-        S: PipelineStep<Input = String> + Default,
-    {
-        ChainedPipeline {
-            previous_pipeline: InitialStep,
-            step: S::default(),
-        }
+impl Pipeline {
+    pub fn new() -> Self {
+        Pipeline { stages: Vec::new() }
     }
-}
 
-pub struct ChainedPipeline<P, S> {
-    previous_pipeline: P,
-    step: S,
-}
-
-impl<P, S> ChainedPipeline<P, S> {
-    pub fn add_step<NextS>(self) -> ChainedPipeline<Self, NextS>
-    where
-        Self: ExecutablePipeline<String>,
-        NextS: PipelineStep<Input = <Self as ExecutablePipeline<String>>::Output> + Default,
-    {
-        ChainedPipeline {
-            previous_pipeline: self,
-            step: NextS::default(),
-        }
+    pub fn add_stage(mut self, stage: Box<dyn PipelineStep>) -> Self {
+        self.stages.push(stage);
+        self
     }
-}
 
-impl<P, S, Input> ExecutablePipeline<Input> for ChainedPipeline<P, S>
-where
-    P: ExecutablePipeline<Input>,
-    S: PipelineStep<Input = <P as ExecutablePipeline<Input>>::Output>,
-{
-    type Output = S::Output;
-
-    fn execute(
-        &mut self,
-        input: Input,
-        config: &CompilerConfig,
-        reporter: Rc<RefCell<CompilerErrorReporter>>,
-    ) -> Result<Self::Output, PipelineError> {
-        let intermediate_result =
-            self.previous_pipeline
-                .execute(input, &config, Rc::clone(&reporter))?;
-
-        handle_errors(&reporter.borrow());
-
-        self.step.run(intermediate_result, config, reporter)
-    }
-}
-
-#[derive(Default)]
-pub struct InitialStep;
-
-impl<T: Clone> ExecutablePipeline<T> for InitialStep {
-    type Output = T;
-    fn execute(
+    pub fn execute<T: 'static>(
         &mut self,
         input: T,
-        _config: &CompilerConfig,
-        _reporter: Rc<RefCell<CompilerErrorReporter>>,
-    ) -> Result<Self::Output, PipelineError> {
-        Ok(input.clone())
+        config: &CompilerConfig,
+        reporter: Rc<RefCell<CompilerErrorReporter>>,
+    ) -> Result<Box<dyn std::any::Any>, PipelineError> {
+        let mut value: Box<dyn std::any::Any> = Box::new(input);
+
+        for stage in &mut self.stages {
+            value = stage.run(value, config, Rc::clone(&reporter))?;
+        }
+
+        Ok(value)
     }
 }

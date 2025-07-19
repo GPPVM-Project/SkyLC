@@ -1,3 +1,4 @@
+use std::any::Any;
 use std::{
     cell::RefCell,
     collections::{HashMap, HashSet},
@@ -7,7 +8,10 @@ use std::{
 use skyl_data::{
     Ast, CompilerConfig, ContextStack, SemanticCode, SymbolKind, SymbolTable, TypeDescriptor,
 };
-use skyl_driver::{PipelineStep, errors::CompilerErrorReporter};
+use skyl_driver::{
+    PipelineStep,
+    errors::{CompilerErrorReporter, PipelineError},
+};
 
 use crate::SemanticAnalyzer;
 
@@ -46,17 +50,18 @@ impl Default for SemanticAnalyzer {
 }
 
 impl PipelineStep for SemanticAnalyzer {
-    type Input = Ast;
-
-    type Output = SemanticCode;
-
     fn run(
         &mut self,
-        input: Self::Input,
+        input: Box<dyn Any>,
         config: &CompilerConfig,
         reporter: Rc<RefCell<CompilerErrorReporter>>,
-    ) -> Result<Self::Output, skyl_driver::errors::PipelineError> {
-        let code = self.analyze(reporter, input.statements, config);
-        Ok(code)
+    ) -> Result<Box<dyn Any>, PipelineError> {
+        let ast = input
+            .downcast::<Ast>()
+            .map_err(|_| PipelineError::new("SemanticAnalyzer esperava Ast como input".into()))?;
+
+        let code = self.analyze(Rc::clone(&reporter), ast.statements, config);
+
+        Ok(Box::new(code))
     }
 }

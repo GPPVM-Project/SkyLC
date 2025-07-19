@@ -13,8 +13,8 @@ macro_rules! gpp_error {
 }
 
 #[derive(Debug, Clone)]
-pub struct NotFoundArchetypeMask{
-    pub arch: Vec<Archetype>
+pub struct NotFoundArchetypeMask {
+    pub arch: Vec<Archetype>,
 }
 
 #[derive(Debug, Clone)]
@@ -25,78 +25,97 @@ pub enum CompilationErrorKind {
     // Parser
     InvalidNativeDeclaration,
     InvalidBuiltinDeclaration,
-    InvalidKeyword { keyword: String },
+    InvalidKeyword {
+        keyword: String,
+    },
     InvalidAssignmentTarget,
     ArgumentLimitOverflow,
-    UnexpectedToken { token: String },
-    ExpectedToken { expect: String, found: String, after: Option<String> = None },
-    ExpectedConstruction { expect: String, found: String },
+    UnexpectedToken {
+        token: String,
+    },
+    ExpectedToken {
+        expect: String,
+        found: String,
+        after: Option<String>,
+    },
+    ExpectedConstruction {
+        expect: String,
+        found: String,
+    },
 
     // Semantic
     MissingMainFunction,
     DuplicatedVariable {
-        name: String, previous: usize
+        name: String,
+        previous: usize,
     },
     UsingVoidToAssignVariableOrParam,
     DuplicatedTypeDefinition {
-        r#type: String
+        r#type: String,
     },
-    DuplicatedField{
-        field: String
+    DuplicatedField {
+        field: String,
     },
     MissingConstruction {
-        construction: String
+        construction: String,
     },
     InvalidStatementScope {
-        statement: String
+        statement: String,
     },
     DepthError {
         msg: String,
     },
     InvalidStatementUsage {
-        error: String
+        error: String,
     },
     ExpectType {
-        expect: String, found: String, compiler_msg: Option<String>
+        expect: String,
+        found: String,
+        compiler_msg: Option<String>,
     },
     ExpectReturnType {
-        expect: String, found: String
+        expect: String,
+        found: String,
     },
     UnexpectedReturnValue {
-        found: String
+        found: String,
     },
     TypeAssertion {
-        msg: String
+        msg: String,
     },
     UsageOfNotRequiredStatement {
-        statement: String, place: String
+        statement: String,
+        place: String,
     },
     DuplicatedNativeFunction {
-        name: String
+        name: String,
     },
     NotFoundType {
         name: String,
     },
     NotFoundField {
         r#type: String,
-        field: String
+        field: String,
     },
 
     ModuleNotFound {
-        path: Vec<String>
+        path: Vec<String>,
     },
-     
+
     ModuleAccessDenied {
         path: Vec<String>,
         full_path: String,
     },
     ModuleReadError {
         path: Vec<String>,
-        full_path: String
-        , error: String    },
+        full_path: String,
+        error: String,
+    },
 
     // General
-    UnsupportedFeature { feature: &'static str },
+    UnsupportedFeature {
+        feature: &'static str,
+    },
     InvalidLiteral {
         line: usize,
     },
@@ -104,18 +123,18 @@ pub enum CompilationErrorKind {
         msg: String,
     },
     InvalidExpression {
-        msg: String
+        msg: String,
     },
     InexistentType {
         r#type: String,
     },
     NotFoundArchetypeMask(NotFoundArchetypeMask),
     UsageOfNotInferredVariable {
-        name: String
+        name: String,
     },
     UsageOfUndeclaredVariable {
-        name: String
-    }
+        name: String,
+    },
 }
 
 #[derive(Debug)]
@@ -207,6 +226,12 @@ impl CompilerErrorReporter {
 
 #[derive(Debug)]
 pub struct PipelineError(pub String);
+
+impl PipelineError {
+    pub fn new(msg: String) -> Self {
+        Self(msg)
+    }
+}
 
 pub fn handle_errors(reporter: &CompilerErrorReporter) {
     if reporter.has_errors() {

@@ -1,9 +1,10 @@
+use std::any::Any;
 use std::{cell::RefCell, rc::Rc};
 
 use skyl_data::{Ast, CompilerConfig, TokenStream};
 use skyl_driver::{
     PipelineStep,
-    errors::{self, CompilerErrorReporter},
+    errors::{self, CompilerErrorReporter, PipelineError},
 };
 
 use crate::parser::Parser;
@@ -18,15 +19,18 @@ impl Default for Parser {
 }
 
 impl PipelineStep for Parser {
-    type Input = TokenStream;
-    type Output = Ast;
-
     fn run(
         &mut self,
-        input: Self::Input,
-        _: &CompilerConfig,
+        input: Box<dyn Any>,
+        _config: &CompilerConfig,
         reporter: Rc<RefCell<CompilerErrorReporter>>,
-    ) -> Result<Self::Output, errors::PipelineError> {
-        Ok(self.parse(reporter, input))
+    ) -> Result<Box<dyn Any>, PipelineError> {
+        let tokens = input
+            .downcast::<TokenStream>()
+            .map_err(|_| PipelineError::new("Parser esperava TokenStream como entrada".into()))?;
+
+        let ast = self.parse(reporter, *tokens);
+
+        Ok(Box::new(ast))
     }
 }

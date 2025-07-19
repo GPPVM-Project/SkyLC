@@ -110,28 +110,28 @@ impl Parser {
 
         let mut params: Vec<FieldDeclaration> = Vec::new();
 
+        let param_name = self.eat(
+            TokenKind::Identifier,
+            CompilationErrorKind::ExpectedConstruction {
+                expect: "'self' param".into(),
+                found: self.peek().lexeme,
+            },
+        )?;
+
+        self.eat(
+            TokenKind::Punctuation(PunctuationKind::Colon),
+            CompilationErrorKind::ExpectedToken {
+                expect: "':'".into(),
+                found: self.peek().lexeme.clone(),
+                after: None,
+            },
+        )?;
+
+        let param_type = self.type_composition()?;
+
+        params.push(FieldDeclaration::new(param_name, param_type));
+
         if !self.check(&[TokenKind::Punctuation(PunctuationKind::RightParen)]) {
-            let param_name = self.eat(
-                TokenKind::Identifier,
-                CompilationErrorKind::ExpectedConstruction {
-                    expect: "param name".into(),
-                    found: self.peek().lexeme,
-                },
-            )?;
-
-            self.eat(
-                TokenKind::Punctuation(PunctuationKind::Colon),
-                CompilationErrorKind::ExpectedToken {
-                    expect: ":".into(),
-                    found: self.peek().lexeme.clone(),
-                    after: None,
-                },
-            )?;
-
-            let param_type = self.type_composition()?;
-
-            params.push(FieldDeclaration::new(param_name, param_type));
-
             while self.try_eat(&[TokenKind::Punctuation(PunctuationKind::Comma)]) {
                 let param_name = self.eat(
                     TokenKind::Identifier,
@@ -144,7 +144,7 @@ impl Parser {
                 self.eat(
                     TokenKind::Punctuation(PunctuationKind::Colon),
                     CompilationErrorKind::ExpectedToken {
-                        expect: ":".into(),
+                        expect: "':'".into(),
                         found: self.peek().lexeme.clone(),
                         after: None,
                     },
@@ -608,7 +608,7 @@ impl Parser {
             TokenKind::Identifier,
             CompilationErrorKind::ExpectedToken {
                 expect: "type name".into(),
-                found: format!("'{}'", self.peek().lexeme),
+                found: self.peek().lexeme,
                 after: None,
             },
         )?);
@@ -1347,7 +1347,9 @@ impl Parser {
         while !self.is_at_end() {
             match self.peek().kind {
                 TokenKind::Punctuation(p) => match p {
-                    PunctuationKind::SemiColon | PunctuationKind::RightBrace => return,
+                    PunctuationKind::SemiColon
+                    | PunctuationKind::RightBrace
+                    | PunctuationKind::RightParen => return,
                     _ => {
                         self.advance();
                     }

@@ -1,3 +1,5 @@
+use std::{fmt::format, path::Path};
+
 use skyl_data::SourceFile;
 
 use crate::errors::{CompilationError, CompilationErrorKind};
@@ -19,28 +21,68 @@ pub fn format_err(error: &CompilationError, file: &SourceFile) -> String {
         let line_number_pad = max_line_digits.max(2);
 
         output += &format!("\x1b[31mError\x1b[0m: {}\n", stringify_error(error));
+        let relative_path = file
+            .path
+            .strip_prefix(std::env::current_dir().unwrap_or_else(|_| Path::new(".").to_path_buf()))
+            .unwrap_or_else(|_| file.path.as_path());
+
         output += &format!(
             " {arrow:>width$} {file}:{line}:{col}\n",
             arrow = "-->",
-            file = file.name,
+            file = relative_path.display(),
             line = line,
             col = col_start + 1,
             width = line_number_pad + 1
         );
-        output += &format!(" {bar:>width$}\n", bar = "|", width = line_number_pad + 1);
         output += &format!(
-            "{line_number:>width$} | {line_content}\n",
+            " \x1b[34m{bar:>width$}\x1b[0m\n",
+            bar = "|",
+            width = line_number_pad + 1
+        );
+        output += &format!(
+            "\x1b[34m{line_number:>width$}\x1b[0m \x1b[34m|\x1b[0m {line_content}\n",
             line_number = line,
             line_content = source_line,
             width = line_number_pad
         );
-        output += &format!(" {bar:>width$} ", bar = "|", width = line_number_pad + 1);
+        output += &format!(
+            " \x1b[34m{bar:>width$}\x1b[0m ",
+            bar = "|",
+            width = line_number_pad + 1
+        );
         output += &format!(
             "\x1b[31m{marker:>offset$}{carets}\x1b[0m\n",
             marker = "",
             offset = col_start,
             carets = "^".repeat(underline_len)
         );
+        output += &format!(
+            " \x1b[34m{bar:>width$}\x1b[0m\n",
+            bar = "|",
+            width = line_number_pad + 1
+        );
+        output += &format!(
+            "\x1b[34m{bar:>width$}\x1b[0m \x1b[92mHint:\x1b[0m {hint}.\n",
+            bar = "╰─",
+            width = line_number_pad + 3,
+            hint = hintify_error(&error)
+        );
+
+        let note_count = 2;
+
+        for i in 0..note_count {
+            let note_bar = if i == note_count - 1 {
+                "└─"
+            } else {
+                "├─"
+            };
+            output += &format!(
+                "\x1b[34m{bar:>width$}\x1b[0m \x1b[93mNote:\x1b[0m {hint}.\n",
+                bar = note_bar,
+                width = line_number_pad + 6,
+                hint = hintify_error(&error)
+            );
+        }
     } else if let Some(line) = error.line {
         output += &format!(
             "\x1b[31mError\x1b[0m: {}. At line {}.\n",
@@ -48,13 +90,13 @@ pub fn format_err(error: &CompilationError, file: &SourceFile) -> String {
             line
         );
     } else {
-        output += &format!("\x1b[31mError\x1b[0m: {}.", stringify_error(error));
+        output += &format!("\x1b[31mError\x1b[0m: {}.\n", stringify_error(error));
     }
 
     output
 }
 
-fn stringify_error(err: &CompilationError) -> String {
+fn hintify_error(err: &CompilationError) -> String {
     match &err.kind {
         CompilationErrorKind::IllegalCharacter(c) => format_illegal_character_err(c),
         CompilationErrorKind::InvalidNativeDeclaration => format_invalid_native_declaration(),
@@ -68,15 +110,17 @@ fn stringify_error(err: &CompilationError) -> String {
             expect,
             found,
             after,
-        } => format_expected_token(expect, found, after),
-        CompilationErrorKind::ExpectedConstruction { expect, found } => todo!(),
+        } => hint_expected_token(expect, found, after),
+        CompilationErrorKind::ExpectedConstruction { expect, found } => {
+            format_expected_construction(expect, found)
+        }
         CompilationErrorKind::MissingMainFunction => todo!(),
         CompilationErrorKind::DuplicatedVariable { name, previous } => {
             format_duplicated_variable(name, previous)
         }
         CompilationErrorKind::UsingVoidToAssignVariableOrParam => todo!(),
         CompilationErrorKind::DuplicatedTypeDefinition { r#type } => todo!(),
-        CompilationErrorKind::DuplicatedField { field } => todo!(),
+        CompilationErrorKind::DuplicatedField { field } => format_duplicated_field(field),
         CompilationErrorKind::MissingConstruction { construction } => todo!(),
         CompilationErrorKind::InvalidStatementScope { statement } => todo!(),
         CompilationErrorKind::DepthError { msg } => todo!(),
@@ -112,6 +156,83 @@ fn stringify_error(err: &CompilationError) -> String {
     }
 }
 
+fn stringify_error(err: &CompilationError) -> String {
+    match &err.kind {
+        CompilationErrorKind::IllegalCharacter(c) => format_illegal_character_err(c),
+        CompilationErrorKind::InvalidNativeDeclaration => format_invalid_native_declaration(),
+        CompilationErrorKind::UnsupportedFeature { feature } => format_unsupported_feature(feature),
+        CompilationErrorKind::InvalidBuiltinDeclaration => todo!(),
+        CompilationErrorKind::InvalidKeyword { keyword } => todo!(),
+        CompilationErrorKind::InvalidAssignmentTarget => todo!(),
+        CompilationErrorKind::ArgumentLimitOverflow => todo!(),
+        CompilationErrorKind::UnexpectedToken { token } => format_unexpected_token(token),
+        CompilationErrorKind::ExpectedToken {
+            expect,
+            found,
+            after,
+        } => format_expected_token(expect, found, after),
+        CompilationErrorKind::ExpectedConstruction { expect, found } => {
+            format_expected_construction(expect, found)
+        }
+        CompilationErrorKind::MissingMainFunction => todo!(),
+        CompilationErrorKind::DuplicatedVariable { name, previous } => {
+            format_duplicated_variable(name, previous)
+        }
+        CompilationErrorKind::UsingVoidToAssignVariableOrParam => todo!(),
+        CompilationErrorKind::DuplicatedTypeDefinition { r#type } => todo!(),
+        CompilationErrorKind::DuplicatedField { field } => format_duplicated_field(field),
+        CompilationErrorKind::MissingConstruction { construction } => todo!(),
+        CompilationErrorKind::InvalidStatementScope { statement } => todo!(),
+        CompilationErrorKind::DepthError { msg } => todo!(),
+        CompilationErrorKind::InvalidStatementUsage { error } => todo!(),
+        CompilationErrorKind::ExpectType {
+            expect,
+            found,
+            compiler_msg,
+        } => format_expect_type(expect, found, compiler_msg),
+        CompilationErrorKind::ExpectReturnType { expect, found } => todo!(),
+        CompilationErrorKind::UnexpectedReturnValue { found } => todo!(),
+        CompilationErrorKind::TypeAssertion { msg } => todo!(),
+        CompilationErrorKind::UsageOfNotRequiredStatement { statement, place } => todo!(),
+        CompilationErrorKind::DuplicatedNativeFunction { name } => todo!(),
+        CompilationErrorKind::NotFoundType { name } => todo!(),
+        CompilationErrorKind::NotFoundField { r#type, field } => todo!(),
+        CompilationErrorKind::ModuleNotFound { path } => todo!(),
+        CompilationErrorKind::ModuleAccessDenied { path, full_path } => todo!(),
+        CompilationErrorKind::ModuleReadError {
+            path,
+            error,
+            full_path,
+        } => todo!(),
+        CompilationErrorKind::InvalidLiteral { line } => todo!(),
+        CompilationErrorKind::InvalidPostfixOperatorUsage { msg } => todo!(),
+        CompilationErrorKind::InvalidExpression { msg } => todo!(),
+        CompilationErrorKind::InexistentType { r#type } => format_inexistent_type(r#type),
+        CompilationErrorKind::UsageOfNotInferredVariable { name } => todo!(),
+        CompilationErrorKind::NotFoundArchetypeMask(not_found_archetype_mask) => todo!(),
+        CompilationErrorKind::UsageOfUndeclaredVariable { name } => {
+            format_usage_of_undeclared_variable(name)
+        }
+    }
+}
+
+fn hint_expected_token(expect: &str, found: &str, after: &Option<String>) -> String {
+    match after {
+        None => {
+            format!("Consider adding {} to fix this error", expect)
+        }
+        Some(a) => format!("Consider adding {} after {} to fix this error", expect, a),
+    }
+}
+
+fn format_expected_construction(expect: &str, found: &str) -> String {
+    format!("Expect {}, but got '{}'.", expect, found)
+}
+
+fn format_duplicated_field(field: &str) -> String {
+    format!("Duplicated field '{}'.", field)
+}
+
 fn format_inexistent_type(r#type: &str) -> String {
     format!("Type '{}' is not declared here", r#type)
 }
@@ -144,7 +265,7 @@ fn format_unexpected_token(token: &str) -> String {
 fn format_expected_token(expect: &str, found: &str, after: &Option<String>) -> String {
     match after {
         None => {
-            format!("Expect {}, but got {}.", expect, found)
+            format!("Expect {}, but got '{}'.", expect, found)
         }
         Some(a) => format!("Expect {} after {}, but got {}.", expect, a, found),
     }

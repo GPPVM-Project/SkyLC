@@ -3,7 +3,7 @@ mod cli;
 use anyhow::{Context, Result};
 use clap::Parser;
 use skyl_codegen::BytecodeGenerator;
-use skyl_data::{read_file_without_bom, CompilerConfig};
+use skyl_data::{read_file_without_bom, CompilerConfig, IntermediateCode, SemanticCode};
 use skyl_ir::IRGenerator;
 use skyl_semantics::SemanticAnalyzer;
 use skyl_stdlib::StdLibrary;
@@ -14,7 +14,7 @@ use std::{cell::RefCell, rc::Rc};
 use cli::{Cli, Commands, CompileArgs};
 use skyl_driver::{
     errors::{handle_errors, CompilerErrorReporter},
-    gpp_error, ExecutablePipeline, PipelineBuilder,
+    gpp_error, Pipeline,
 };
 use skyl_lexer::Lexer;
 
@@ -54,27 +54,27 @@ fn compile(args: &CompileArgs) -> Result<()> {
 
     let config = CompilerConfig::new(args.clone().input_file, stdlib_path, args.verbose);
 
-    let mut pipeline = PipelineBuilder::new::<Lexer>()
-        .add_step::<skyl_parser::Parser>()
-        .add_step::<SemanticAnalyzer>()
-        .add_step::<IRGenerator>()
-        .add_step::<BytecodeGenerator>();
+    let mut pipeline = Pipeline::new()
+        .add_stage(Box::new(Lexer::default()))
+        .add_stage(Box::new(skyl_parser::Parser::default()))
+        .add_stage(Box::new(SemanticAnalyzer::default()))
+        .add_stage(Box::new(IRGenerator::default()))
+        .add_stage(Box::new(BytecodeGenerator::default()));
 
-    let bytecode = pipeline.execute(source_code.content.clone(), &config, Rc::clone(&reporter));
+    let bytecode =
+        match pipeline.execute(source_code.content.clone(), &config, Rc::clone(&reporter)) {
+            Err(e) => gpp_error!("{}", e.0),
+            Ok(ir) => ir,
+        };
 
     if reporter.borrow().has_errors() {
         handle_errors(&reporter.borrow());
     }
 
-    match bytecode {
-        Err(e) => gpp_error!("{}", e.0),
-        Ok(b) => {
-            let mut vm = VirtualMachine::new(&config);
-            vm.attach_bytecode(&b);
-            StdLibrary::register_std_libraries(&mut vm);
-            vm.interpret();
-        }
-    }
+    let mut vm = VirtualMachine::new(&config);
+    vm.attach_bytecode(&bytecode.downcast().unwrap());
+    StdLibrary::register_std_libraries(&mut vm);
+    vm.interpret();
 
     Ok(())
 }

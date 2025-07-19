@@ -138,7 +138,7 @@ impl IRGenerator {
                 vec![]
             }
             AnnotatedStatement::BuiltinAttribute(name, kinds) => {
-                println!("Attribute: {}", name.lexeme);
+                // println!("Attribute: {}", name.lexeme);
                 vec![]
             }
             AnnotatedStatement::InternalDefinition(target, definition, body) => {
