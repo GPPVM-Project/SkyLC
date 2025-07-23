@@ -3,6 +3,7 @@ use std::{env, path::PathBuf};
 use anyhow::Error;
 
 pub mod cli;
+pub mod decompiler;
 
 pub fn find_stdlib_path() -> Result<Option<PathBuf>, Error> {
     if let Ok(path_str) = env::var("SKYL_LIB") {

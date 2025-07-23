@@ -3,12 +3,12 @@ mod cli;
 use anyhow::{Context, Result};
 use clap::Parser;
 use skyl_codegen::BytecodeGenerator;
-use skyl_data::{read_file_without_bom, CompilerConfig, IntermediateCode, SemanticCode};
+use skyl_data::{read_file_without_bom, CompilerConfig, IntermediateCode};
 use skyl_ir::IRGenerator;
 use skyl_semantics::SemanticAnalyzer;
 use skyl_stdlib::StdLibrary;
 use skyl_vm::virtual_machine::VirtualMachine;
-use skylc::find_stdlib_path;
+use skylc::{decompiler::Decompiler, find_stdlib_path};
 use std::{cell::RefCell, rc::Rc};
 
 use cli::{Cli, Commands, CompileArgs};
@@ -19,6 +19,8 @@ use skyl_driver::{
 use skyl_lexer::Lexer;
 
 fn main() -> Result<()> {
+    dotenvy::dotenv().unwrap();
+
     let cli_args = Cli::parse();
 
     match &cli_args.command {
@@ -58,21 +60,28 @@ fn compile(args: &CompileArgs) -> Result<()> {
         .add_stage(Box::new(Lexer::default()))
         .add_stage(Box::new(skyl_parser::Parser::default()))
         .add_stage(Box::new(SemanticAnalyzer::default()))
-        .add_stage(Box::new(IRGenerator::default()))
-        .add_stage(Box::new(BytecodeGenerator::default()));
+        .add_stage(Box::new(IRGenerator::default()));
 
-    let bytecode =
-        match pipeline.execute(source_code.content.clone(), &config, Rc::clone(&reporter)) {
-            Err(e) => gpp_error!("{}", e.0),
-            Ok(ir) => ir,
-        };
+    let ir = match pipeline.execute(source_code.content.clone(), &config, Rc::clone(&reporter)) {
+        Err(e) => gpp_error!("{}", e.0),
+        Ok(ir) => ir,
+    };
 
     if reporter.borrow().has_errors() {
         handle_errors(&reporter.borrow());
     }
 
+    let ir: IntermediateCode = ir.downcast::<IntermediateCode>().unwrap().as_ref().clone();
+
+    if config.verbose {
+        Decompiler::decompile(&ir);
+    }
+
+    let bytecode_gen = BytecodeGenerator::new();
+    let bytecode = bytecode_gen.generate(ir);
+
     let mut vm = VirtualMachine::new(&config);
-    vm.attach_bytecode(&bytecode.downcast().unwrap());
+    vm.attach_bytecode(&bytecode);
     StdLibrary::register_std_libraries(&mut vm);
     vm.interpret();
 

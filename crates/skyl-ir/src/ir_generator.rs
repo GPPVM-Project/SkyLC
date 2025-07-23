@@ -449,7 +449,6 @@ impl IRGenerator {
                 OperatorKind::LessEqual => Instruction::LessEqual,
                 OperatorKind::Greater => Instruction::Greater,
                 OperatorKind::GreaterEqual => Instruction::GreaterEqual,
-                OperatorKind::NotEqual => Instruction::Neq,
                 OperatorKind::Equal => Instruction::Eq,
                 OperatorKind::Arrow => todo!(),
                 _ => {

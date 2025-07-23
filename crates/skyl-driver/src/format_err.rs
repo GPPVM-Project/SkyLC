@@ -68,7 +68,8 @@ pub fn format_err(error: &CompilationError, file: &SourceFile) -> String {
             hint = hintify_error(&error)
         );
 
-        let note_count = 2;
+        let notes = notefy_error(error);
+        let note_count = notes.len();
 
         for i in 0..note_count {
             let note_bar = if i == note_count - 1 {
@@ -80,7 +81,7 @@ pub fn format_err(error: &CompilationError, file: &SourceFile) -> String {
                 "\x1b[34m{bar:>width$}\x1b[0m \x1b[93mNote:\x1b[0m {hint}.\n",
                 bar = note_bar,
                 width = line_number_pad + 6,
-                hint = hintify_error(&error)
+                hint = notes[i]
             );
         }
     } else if let Some(line) = error.line {
@@ -96,9 +97,82 @@ pub fn format_err(error: &CompilationError, file: &SourceFile) -> String {
     output
 }
 
+fn notefy_error(error: &CompilationError) -> Vec<String> {
+    match &error.kind {
+        CompilationErrorKind::IllegalCharacter(_) => vec![format!("For Skyl constructions, use ASCII characters and valid symbols, other characters can be used inside strings"),
+                                    format!("For more informations consult the Skyl documentation")],
+        CompilationErrorKind::InvalidNativeDeclaration => todo!(),
+        CompilationErrorKind::InvalidBuiltinDeclaration => todo!(),
+        CompilationErrorKind::InvalidKeyword { keyword } => todo!(),
+        CompilationErrorKind::InvalidAssignmentTarget => todo!(),
+        CompilationErrorKind::ArgumentLimitOverflow => todo!(),
+        CompilationErrorKind::UnexpectedToken { token } => todo!(),
+        CompilationErrorKind::ExpectedToken {
+                                        expect,
+                                        found,
+                                        after,
+                                    } => todo!(),
+        CompilationErrorKind::ExpectedConstruction { expect, found } => todo!(),
+        CompilationErrorKind::MissingMainFunction => todo!(),
+        CompilationErrorKind::DuplicatedVariable { name, previous } => todo!(),
+        CompilationErrorKind::UsingVoidToAssignVariableOrParam => todo!(),
+        CompilationErrorKind::DuplicatedTypeDefinition { r#type } => todo!(),
+        CompilationErrorKind::DuplicatedField { field } => todo!(),
+        CompilationErrorKind::MissingConstruction { construction } => todo!(),
+        CompilationErrorKind::InvalidStatementScope { statement } => todo!(),
+        CompilationErrorKind::DepthError { msg } => vec![],
+        CompilationErrorKind::InvalidStatementUsage { error } => todo!(),
+        CompilationErrorKind::ExpectType {
+                                        expect,
+                                        found,
+                                        compiler_msg,
+                                    } => vec![],
+        CompilationErrorKind::ExpectReturnType { expect, found } => todo!(),
+        CompilationErrorKind::UnexpectedReturnValue { found } => todo!(),
+        CompilationErrorKind::TypeAssertion { msg } => todo!(),
+        CompilationErrorKind::UsageOfNotRequiredStatement { statement, place } => todo!(),
+        CompilationErrorKind::DuplicatedNativeFunction { name } => todo!(),
+        CompilationErrorKind::NotFoundType { name } => todo!(),
+        CompilationErrorKind::NotFoundField { r#type, field } => todo!(),
+        CompilationErrorKind::ModuleNotFound { path } => todo!(),
+        CompilationErrorKind::ModuleAccessDenied { path, full_path } => todo!(),
+        CompilationErrorKind::ModuleReadError {
+                                        path,
+                                        full_path,
+                                        error,
+                                    } => todo!(),
+        CompilationErrorKind::UnsupportedFeature { feature } => todo!(),
+        CompilationErrorKind::InvalidLiteral { line } => todo!(),
+        CompilationErrorKind::InvalidPostfixOperatorUsage { msg } => todo!(),
+        CompilationErrorKind::InvalidExpression { msg } => todo!(),
+        CompilationErrorKind::InexistentType { r#type } => vec![],
+        CompilationErrorKind::NotFoundArchetypeMask(not_found_archetype_mask) => todo!(),
+        CompilationErrorKind::UsageOfNotInferredVariable { name } => todo!(),
+        CompilationErrorKind::UsageOfUndeclaredVariable { name } => vec![],
+        CompilationErrorKind::InvalidAttributeExpression { msg } => todo!(),
+        CompilationErrorKind::InvalidOperatorOverload(_) => vec![],
+        CompilationErrorKind::MismatchAttrbuteArgument { arg, accepted } => vec![],
+        CompilationErrorKind::InvalidConstantEvaluation(_) => todo!(),
+        CompilationErrorKind::OperatorOverloadNotFound { this, other, operator } => {
+                vec![format!("#[coersion(op)]"), format!("def overload_name(self: {}, other: {}) -> SomeKind", this, other)]
+        },
+        CompilationErrorKind::DuplicatedDefinition { kind, definition, target } => vec![],
+CompilationErrorKind::SymbolNotFound { symbol_kind, symbol_name } => vec![],
+    }
+}
+
 fn hintify_error(err: &CompilationError) -> String {
     match &err.kind {
-        CompilationErrorKind::IllegalCharacter(c) => format_illegal_character_err(c),
+        CompilationErrorKind::SymbolNotFound {
+            symbol_kind,
+            symbol_name,
+        } => format!(
+            "Consider to creating a `{}` {} declaration",
+            symbol_name, symbol_kind
+        ),
+        CompilationErrorKind::IllegalCharacter(c) => {
+            format!("Consider removing '{c}' from source code")
+        }
         CompilationErrorKind::InvalidNativeDeclaration => format_invalid_native_declaration(),
         CompilationErrorKind::UnsupportedFeature { feature } => format_unsupported_feature(feature),
         CompilationErrorKind::InvalidBuiltinDeclaration => todo!(),
@@ -123,7 +197,9 @@ fn hintify_error(err: &CompilationError) -> String {
         CompilationErrorKind::DuplicatedField { field } => format_duplicated_field(field),
         CompilationErrorKind::MissingConstruction { construction } => todo!(),
         CompilationErrorKind::InvalidStatementScope { statement } => todo!(),
-        CompilationErrorKind::DepthError { msg } => todo!(),
+        CompilationErrorKind::DepthError { msg } => {
+            format!("Move the declaration to other scope level.")
+        }
         CompilationErrorKind::InvalidStatementUsage { error } => todo!(),
         CompilationErrorKind::ExpectType {
             expect,
@@ -147,12 +223,41 @@ fn hintify_error(err: &CompilationError) -> String {
         CompilationErrorKind::InvalidLiteral { line } => todo!(),
         CompilationErrorKind::InvalidPostfixOperatorUsage { msg } => todo!(),
         CompilationErrorKind::InvalidExpression { msg } => todo!(),
-        CompilationErrorKind::InexistentType { r#type } => format_inexistent_type(r#type),
+        CompilationErrorKind::InexistentType { r#type } => {
+            format!("Consider declare the '{}' type before use it", r#type)
+        }
         CompilationErrorKind::UsageOfNotInferredVariable { name } => todo!(),
         CompilationErrorKind::NotFoundArchetypeMask(not_found_archetype_mask) => todo!(),
         CompilationErrorKind::UsageOfUndeclaredVariable { name } => {
             format_usage_of_undeclared_variable(name)
         }
+        CompilationErrorKind::InvalidAttributeExpression { msg } => todo!(),
+        CompilationErrorKind::InvalidOperatorOverload(msg) => {
+            format!("Consider changing function structure to match with desired overload.")
+        }
+        CompilationErrorKind::MismatchAttrbuteArgument { arg, accepted } => {
+            let formatted = accepted
+                .iter()
+                .map(|s| format!("\"{}\"", s))
+                .collect::<Vec<_>>()
+                .join(", ");
+
+            format!("The valid arguments here are: {}", formatted)
+        }
+        CompilationErrorKind::InvalidConstantEvaluation(_) => todo!(),
+        CompilationErrorKind::OperatorOverloadNotFound {
+            this,
+            other,
+            operator,
+        } => format!("Consider implement correspondent operator overload"),
+        CompilationErrorKind::DuplicatedDefinition {
+            definition,
+            target,
+            kind,
+        } => format!(
+            "Consider removing one of the definitions of `{}.{}`",
+            target, definition
+        ),
     }
 }
 
@@ -174,7 +279,7 @@ fn stringify_error(err: &CompilationError) -> String {
         CompilationErrorKind::ExpectedConstruction { expect, found } => {
             format_expected_construction(expect, found)
         }
-        CompilationErrorKind::MissingMainFunction => todo!(),
+        CompilationErrorKind::MissingMainFunction => format!("Missing `main` function"),
         CompilationErrorKind::DuplicatedVariable { name, previous } => {
             format_duplicated_variable(name, previous)
         }
@@ -183,7 +288,7 @@ fn stringify_error(err: &CompilationError) -> String {
         CompilationErrorKind::DuplicatedField { field } => format_duplicated_field(field),
         CompilationErrorKind::MissingConstruction { construction } => todo!(),
         CompilationErrorKind::InvalidStatementScope { statement } => todo!(),
-        CompilationErrorKind::DepthError { msg } => todo!(),
+        CompilationErrorKind::DepthError { msg } => format!("{}", msg),
         CompilationErrorKind::InvalidStatementUsage { error } => todo!(),
         CompilationErrorKind::ExpectType {
             expect,
@@ -213,6 +318,31 @@ fn stringify_error(err: &CompilationError) -> String {
         CompilationErrorKind::UsageOfUndeclaredVariable { name } => {
             format_usage_of_undeclared_variable(name)
         }
+        CompilationErrorKind::InvalidAttributeExpression { msg } => todo!(),
+        CompilationErrorKind::InvalidOperatorOverload(msg) => {
+            format!("Invalid operator overload: {}.", msg)
+        }
+        CompilationErrorKind::MismatchAttrbuteArgument { arg, accepted: _ } => {
+            format!("Mismatch attribute argument: '{}'.", arg)
+        }
+        CompilationErrorKind::InvalidConstantEvaluation(_) => todo!(),
+        CompilationErrorKind::OperatorOverloadNotFound {
+            this,
+            other,
+            operator,
+        } => format!(
+            "Operator overload `{} {} {}` not found.",
+            this, operator, other
+        ),
+        CompilationErrorKind::DuplicatedDefinition {
+            definition,
+            target,
+            kind,
+        } => format!("Duplicated {} definition of '{}'.", kind, definition),
+        CompilationErrorKind::SymbolNotFound {
+            symbol_kind,
+            symbol_name,
+        } => format!("{} `{}` not found", symbol_kind, symbol_name),
     }
 }
 
@@ -248,7 +378,7 @@ fn format_expect_type(expect: &str, found: &str, compiler_msg: &Option<String>) 
 }
 
 fn format_usage_of_undeclared_variable(name: &str) -> String {
-    format!("The variable '{}' are not declared here.", name)
+    format!("The variable '{}' are not declared here", name)
 }
 
 fn format_duplicated_variable(name: &str, previous: &usize) -> String {
@@ -281,9 +411,9 @@ fn format_invalid_native_declaration() -> String {
 
 fn format_illegal_character_err(c: &char) -> String {
     match c {
-        '\n' => "\\n".into(),
-        '\r' => "\\r".into(),
-        '\t' => "\\t".into(),
-        _ => c.to_string(),
+        '\n' => format!("Illegal character '\\n'"),
+        '\r' => format!("Illegal character '\\r'"),
+        '\t' => format!("Illegal character '\\t'"),
+        _ => format!("Illegal character '{c}'."),
     }
 }

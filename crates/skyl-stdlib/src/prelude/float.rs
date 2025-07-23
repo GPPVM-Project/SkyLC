@@ -7,6 +7,7 @@ impl GPPFloatLibrary {
         if let Value::Float(a) = args[0] {
             Value::Float(a.sqrt())
         } else {
+            println!("{}", args[0]);
             unreachable!()
         }
     }

@@ -14,11 +14,11 @@ use std::{
 };
 
 use skyl_data::{
-    AnnotatedAST, AnnotatedExpression, AnnotatedStatement, Archetype, Ast, CompilerConfig,
-    ContextScope, ContextStack, Expression, FieldDeclaration, FieldDescriptor, FunctionPrototype,
-    Literal, MethodDescriptor, MethodParameter, OperatorKind, SemanticCode, SemanticValue, Span,
-    Statement, StaticValue, SymbolKind, SymbolTable, Token, TokenKind, TypeDecl, TypeDescriptor,
-    ValueWrapper, read_file_without_bom,
+    AnnotatedAST, AnnotatedExpression, AnnotatedStatement, Archetype, Ast, BuiltinAttribute,
+    CoersionKind, CompilerConfig, ContextScope, ContextStack, Decorator, Expression,
+    FieldDeclaration, FieldDescriptor, FunctionPrototype, Literal, MethodDescriptor,
+    MethodParameter, SemanticCode, SemanticValue, Span, Statement, StaticValue, SymbolKind,
+    SymbolTable, Token, TokenKind, TypeDecl, TypeDescriptor, ValueWrapper, read_file_without_bom,
 };
 use skyl_driver::{
     errors::{CompilationError, CompilationErrorKind, CompilerErrorReporter},
@@ -27,10 +27,10 @@ use skyl_driver::{
 use skyl_lexer::Lexer;
 use skyl_parser::Parser;
 
-use crate::import_pipeline::ModuleImportPipeline;
-
-type TyStmts = Vec<AnnotatedStatement>;
-type TyResult<T> = Result<T, CompilationError>;
+use crate::{
+    import_pipeline::ModuleImportPipeline,
+    result::{TyResult, TyStmts},
+};
 
 pub struct SemanticAnalyzer {
     pub(crate) statements: Vec<Statement>,
@@ -43,6 +43,7 @@ pub struct SemanticAnalyzer {
     pub(crate) current_return_kind_id: Option<u32>,
     pub(crate) current_static_id: u32,
     pub(crate) current_symbol_kind: SymbolKind,
+    pub(crate) current_decorator: Decorator,
     pub(crate) reporter: Rc<RefCell<CompilerErrorReporter>>,
     pub(crate) void_instance: Rc<RefCell<TypeDescriptor>>,
     pub(crate) modules: Vec<String>,
@@ -64,6 +65,7 @@ impl SemanticAnalyzer {
             current_symbol_kind: SymbolKind::None,
             reporter: Rc::new(RefCell::new(CompilerErrorReporter::empty())),
             void_instance: Rc::new(RefCell::new(TypeDescriptor::empty())),
+            ..Default::default()
         };
         let mut archetypes = HashSet::new();
         let fields = HashMap::new();
@@ -327,346 +329,6 @@ impl SemanticAnalyzer {
         )
     }
 
-    /// Analyzes a statement and performs semantic validation.
-    ///
-    /// This function processes different types of statements and ensures they adhere
-    /// to semantic rules. It delegates specific checks to corresponding handlers
-    /// based on the statement type.
-    ///
-    /// # Arguments
-    ///
-    /// * `stmt` - A reference to the statement to be analyzed.
-    ///
-    /// # Returns
-    ///
-    /// An `AnnotatedStatement` containing the analyzed and validated statement.
-    fn analyze_stmt(&mut self, stmt: &Statement) -> Result<TyStmts, CompilationError> {
-        match stmt {
-            Statement::Return(keyword, value) => Ok(vec![self.analyze_return(keyword, value)?]),
-            Statement::Expression(expr) => Ok(vec![AnnotatedStatement::Expression(
-                self.analyze_expr(expr)?,
-            )]),
-            Statement::Decorator(hash_token, attribs) => {
-                Ok(vec![self.analyze_decorator(hash_token, attribs)?])
-            }
-            Statement::Type(name, archetypes, fields) => {
-                Ok(vec![self.analyze_type(name, archetypes, fields)?])
-            }
-            Statement::Function(name, params, body, return_kind) => {
-                Ok(vec![self.analyze_function(
-                    name,
-                    params,
-                    &body,
-                    return_kind,
-                )?])
-            }
-            Statement::NativeFunction(name, params, return_kind) => {
-                Ok(vec![self.analyze_native_function(
-                    name,
-                    params,
-                    return_kind,
-                )?])
-            }
-            Statement::Variable(name, value) => {
-                Ok(vec![self.analyze_variable_declaration(name, value)?])
-            }
-            Statement::ForEach(variable, condition, body) => {
-                Ok(vec![self.analyze_iterator(variable, condition, &body)?])
-            }
-            Statement::While(condition, body) => {
-                Ok(vec![self.analyze_while_stmt(condition, body)?])
-            }
-            Statement::If(keyword, condition, body, else_branch) => {
-                Ok(vec![self.analyze_if_stmt(
-                    keyword,
-                    condition,
-                    &body,
-                    else_branch,
-                )?])
-            }
-            Statement::BuiltinAttribute(name, kinds) => {
-                Ok(vec![self.analyze_builtin_attribute(name, kinds)?])
-            }
-            Statement::InternalDefinition(name, params, body, return_kind) => {
-                Ok(vec![self.analyze_internal_definition(
-                    name,
-                    params,
-                    body,
-                    return_kind,
-                )?])
-            }
-            Statement::DestructurePattern(fields, value) => {
-                Ok(self.analyze_destructure_pattern(fields, value)?)
-            }
-            Statement::Scope(stmts) => {
-                let stmts = self.analyze_scope(stmts)?;
-                let mut boxed_statements: Vec<Box<AnnotatedStatement>> = Vec::new();
-
-                for stmt in stmts {
-                    boxed_statements.push(Box::new(stmt));
-                }
-
-                Ok(vec![AnnotatedStatement::Scope(boxed_statements)])
-            }
-            Statement::Import(module) => self.analyze_import(module),
-            Statement::EndCode => Ok(vec![]),
-            _ => gpp_error!("Statement {:?} not supported.", stmt),
-        }
-    }
-
-    /// Analyzes a for-each loop and ensures semantic correctness.
-    ///
-    /// This function verifies that the loop condition is iterable and processes
-    /// the loop body within a new scope to ensure proper variable handling.
-    ///
-    /// # Arguments
-    ///
-    /// * `variable` - The loop variable.
-    /// * `condition` - The iterable expression.
-    /// * `body` - The statement representing the loop body.
-    ///
-    /// # Returns
-    ///
-    /// An `AnnotatedStatement::ForEach` containing the analyzed loop structure.
-    fn analyze_iterator(
-        &mut self,
-        variable: &Token,
-        condition: &Expression,
-        body: &Statement,
-    ) -> TyResult<AnnotatedStatement> {
-        self.begin_scope();
-
-        let annotated_iterator: AnnotatedExpression;
-        let iterator_kind: Rc<RefCell<TypeDescriptor>>;
-
-        match condition {
-            Expression::Variable(variable, span) => {
-                self.assert_archetype_kind(
-                    condition,
-                    self.get_static_kind_by_name("iterator", condition)?,
-                    "Expect iterator in 'for' loop.",
-                )?;
-
-                iterator_kind = self.resolve_identifier_type(variable)?;
-                annotated_iterator = self.analyze_expr(condition)?;
-            }
-
-            Expression::Call(callee, paren, args, span) => {
-                iterator_kind = self.resolve_function_return_type(callee, paren, args)?;
-                self.assert_kind_equals(
-                    iterator_kind.clone(),
-                    self.get_static_kind_by_name("iterator", callee)?,
-                    "Expect iterator in for each declaration.".to_string(),
-                )?;
-
-                annotated_iterator = self.analyze_expr(condition)?;
-            }
-
-            _ => {
-                iterator_kind = self.resolve_iterator_kind(condition)?;
-                annotated_iterator = self.analyze_expr(condition)?;
-            }
-        }
-
-        let mut annotated_body = Vec::new();
-
-        match body {
-            Statement::Scope(stmts) => {
-                for stmt in stmts {
-                    let stmt_vec = self.analyze_stmt(stmt)?;
-
-                    for s in stmt_vec {
-                        annotated_body.push(Box::new(s));
-                    }
-                }
-            }
-            _ => gpp_error!("Statement {:?} is not allowed here.", body),
-        }
-
-        self.end_scope();
-
-        Ok(AnnotatedStatement::ForEach(
-            variable.clone(),
-            annotated_iterator,
-            Box::new(AnnotatedStatement::Scope(annotated_body)),
-        ))
-    }
-
-    /// Analyzes a variable declaration and ensures it adheres to semantic rules.
-    ///
-    /// This function checks if the variable name is already declared within the
-    /// current scope and processes its initialization expression if provided.
-    ///
-    /// # Arguments
-    ///
-    /// * `name` - The token representing the variable name.
-    /// * `value` - An optional expression representing the variable's initial value.
-    ///
-    /// # Returns
-    ///
-    /// An `AnnotatedStatement::Variable` containing the analyzed variable declaration.
-    fn analyze_variable_declaration(
-        &mut self,
-        name: &Token,
-        value: &Option<Expression>,
-    ) -> TyResult<AnnotatedStatement> {
-        let ctx_name = self.context().name(&name.lexeme);
-
-        match ctx_name {
-            Some(sm) => {
-                return Err(CompilationError::with_span(
-                    CompilationErrorKind::DuplicatedVariable {
-                        name: name.lexeme.clone(),
-                        previous: sm.line,
-                    },
-                    Some(name.line),
-                    name.span,
-                ));
-            }
-            None => match value {
-                Some(expr) => {
-                    let annotated_value = self.analyze_expr(expr)?;
-
-                    let value = SemanticValue::new(
-                        Some(self.resolve_expr_type(expr)?),
-                        ValueWrapper::Internal,
-                        name.line,
-                    );
-
-                    if value.kind.as_ref().unwrap().borrow().name == "void" {
-                        return Err(CompilationError::with_span(
-                            CompilationErrorKind::UsingVoidToAssignVariableOrParam,
-                            Some(name.line),
-                            name.span,
-                        ));
-                    }
-
-                    let mut context = &mut self.context();
-                    context.declare_name(&name.lexeme, value);
-                    Ok(AnnotatedStatement::Variable(
-                        name.clone(),
-                        Some(annotated_value),
-                    ))
-                }
-                None => {
-                    let value = SemanticValue::new(None, ValueWrapper::Internal, name.line);
-                    let mut context = &mut self.context();
-                    context.declare_name(&name.lexeme, value);
-                    Ok(AnnotatedStatement::Variable(name.clone(), None))
-                }
-            },
-        }
-    }
-
-    /// Analyzes a type declaration and ensures it adheres to semantic rules.
-    ///
-    /// This function validates that the type is declared at the top level,
-    /// ensures there are no duplicate type definitions, and processes archetypes
-    /// and fields associated with the type.
-    ///
-    /// # Arguments
-    ///
-    /// * `name` - The token representing the type name.
-    /// * `archetypes` - A list of archetypes associated with the type.
-    /// * `fields` - A list of field declarations associated with the type.
-    ///
-    /// # Returns
-    ///
-    /// An `AnnotatedStatement::Type` containing the analyzed type declaration.
-    fn analyze_type(
-        &mut self,
-        name: &Token,
-        archetypes: &Vec<Token>,
-        fields: &Vec<FieldDeclaration>,
-    ) -> TyResult<AnnotatedStatement> {
-        self.require_depth(
-            Ordering::Less,
-            1,
-            format!(
-                "Type declarations are only allowed in top level code. At line {}.",
-                name.line
-            ),
-        )?;
-
-        if let Some(kind) = self.symbol_table.names.get(&name.lexeme) {
-            return Err(CompilationError::with_span(
-                CompilationErrorKind::DuplicatedTypeDefinition {
-                    r#type: name.lexeme.clone(),
-                },
-                Some(name.line),
-                name.span,
-            ));
-        }
-
-        self.current_symbol_kind = SymbolKind::Kind;
-
-        let mut decl = TypeDecl::new(name.lexeme.clone(), self.get_static_id());
-        decl.add_archetype(Archetype::new("object".to_string()));
-        decl.add_archetype(Archetype::new(name.lexeme.clone()));
-
-        for archetype in archetypes {
-            let kind = self
-                .get_static_kind_by_name(
-                    &archetype.lexeme,
-                    &Expression::Literal(archetype.clone(), archetype.span),
-                )?
-                .borrow()
-                .archetypes
-                .clone();
-
-            for kind_arch in kind {
-                decl.add_archetype(kind_arch);
-            }
-        }
-
-        let mut type_fields: HashMap<String, FieldDescriptor> = HashMap::new();
-
-        for (index, field) in fields.iter().enumerate() {
-            if let Expression::TypeComposition(mask, span) = field.kind.clone() {
-                let kind = self.resolve_type_composition(&mask)?;
-                let archetypes: Vec<Archetype> =
-                    kind.borrow().archetypes.clone().into_iter().collect();
-
-                for archetype in archetypes {
-                    self.get_static_kind_by_name(&archetype.name, &field.kind.clone())?;
-                }
-
-                if type_fields.contains_key(&field.name.lexeme) {
-                    return Err(CompilationError::with_span(
-                        CompilationErrorKind::DuplicatedField {
-                            field: field.name.lexeme.clone(),
-                        },
-                        Some(field.name.line),
-                        field.kind.span().merge(field.name.span),
-                    ));
-                }
-
-                type_fields.insert(
-                    field.name.lexeme.clone(),
-                    FieldDescriptor::new(field.name.lexeme.clone(), kind.clone(), index as u8),
-                );
-            }
-        }
-
-        let type_descriptor = Rc::new(RefCell::new(TypeDescriptor::from_type_decl_with_fields(
-            decl,
-            type_fields.clone(),
-        )));
-
-        self.define_type(type_descriptor.clone());
-
-        let constructor = FunctionPrototype::new(
-            name.lexeme.clone(),
-            fields.clone(),
-            type_fields.len(),
-            self.get_user_defined_kind(name.lexeme.clone()),
-        );
-
-        self.define_function(name.lexeme.clone(), constructor);
-
-        Ok(AnnotatedStatement::Type(type_descriptor))
-    }
-
     /// Defines a new type in the symbol table.
     ///
     /// This function adds a new type to the symbol table, creating an entry with the type's name
@@ -688,114 +350,11 @@ impl SemanticAnalyzer {
     ///
     /// # Notes
     /// - The symbol table manages the definition of types to ensure that defined types are not duplicated.
-    fn define_type(&mut self, descriptor: Rc<RefCell<TypeDescriptor>>) {
+    pub(super) fn define_type(&mut self, descriptor: Rc<RefCell<TypeDescriptor>>) {
         self.symbol_table.define(
             descriptor.clone().borrow().name.clone(),
             StaticValue::new(descriptor, ValueWrapper::Internal),
         );
-    }
-
-    /// Analyzes a function definition and generates an annotated statement.
-    ///
-    /// This function processes the function's name, parameters, body, and return type, ensuring
-    /// that the function is correctly defined within the top-level scope. It validates the function's
-    /// return type, parameters, and checks for any semantic errors. The function body is analyzed
-    /// and converted into an annotated scope containing the function's statements.
-    ///
-    /// # Parameters
-    /// - `name`: A reference to the `Token` representing the function's name. It is used to track
-    ///   the function's location for error reporting.
-    /// - `params`: A reference to a vector of `FieldDeclaration` representing the function's
-    ///   parameters. Each parameter has a name and a type.
-    /// - `body`: A reference to the `Statement` representing the function's body. It contains the
-    ///   actual code of the function.
-    /// - `return_kind`: A reference to an `Expression` representing the return type of the function.
-    ///   It defines the expected return type, such as a basic type or a composition of types.
-    ///
-    /// # Returns
-    /// This function returns an `AnnotatedStatement` that represents the analyzed function definition.
-    /// The returned statement contains the function prototype along with its annotated body.
-    fn analyze_function(
-        &mut self,
-        name: &Token,
-        params: &Vec<FieldDeclaration>,
-        body: &Statement,
-        return_kind: &Expression,
-    ) -> TyResult<AnnotatedStatement> {
-        self.require_depth(
-            Ordering::Less,
-            1,
-            format!(
-                "Functions are only allowed in top level code. At line {}.",
-                name.line
-            ),
-        )?;
-
-        self.current_symbol_kind = SymbolKind::Function;
-
-        let mut kind: Rc<RefCell<TypeDescriptor>>;
-
-        if let Expression::TypeComposition(mask, span) = return_kind {
-            kind = self.resolve_type_composition(mask)?;
-        } else {
-            kind = self.get_static_kind_by_name("void", return_kind)?;
-
-            return Err(CompilationError::with_span(
-                CompilationErrorKind::MissingConstruction {
-                    construction: "function return kind".into(),
-                },
-                Some(name.line),
-                return_kind.span(),
-            ));
-        }
-
-        let function_definition = FunctionPrototype::new(
-            name.lexeme.clone(),
-            params.clone(),
-            params.len(),
-            kind.clone(),
-        );
-
-        self.define_function(name.lexeme.clone(), function_definition.clone());
-
-        self.current_symbol = name.lexeme.clone();
-
-        self.begin_scope();
-
-        for arg in &function_definition.params {
-            let kind = self.resolve_expr_type(&arg.kind)?;
-            self.define_local(
-                &arg.name.lexeme,
-                SemanticValue::new(Some(kind), ValueWrapper::Internal, arg.name.line),
-            );
-        }
-
-        let mut annotated_body = Vec::new();
-
-        match body {
-            Statement::Scope(stmts) => {
-                for stmt in stmts {
-                    for s in self.analyze_stmt(stmt)? {
-                        annotated_body.push(Box::new(s));
-                    }
-                }
-            }
-            _ => {
-                return Err(CompilationError::new(
-                    CompilationErrorKind::InvalidStatementScope {
-                        statement: format!("{:?}", body),
-                    },
-                    None,
-                ));
-            }
-        }
-
-        self.end_scope();
-
-        Ok(AnnotatedStatement::Function(
-            function_definition,
-            Box::new(AnnotatedStatement::Scope(annotated_body)),
-        ))
     }
 
     /// Ensures that the current depth satisfies a given condition.
@@ -812,18 +371,20 @@ impl SemanticAnalyzer {
     ///
     /// # Returns
     /// This function does not return any value. It will report an error if the condition is not satisfied.
-    fn require_depth(
+    pub(super) fn require_depth(
         &mut self,
         comparator: Ordering,
+        location: &Token,
         depth: usize,
         message: String,
     ) -> TyResult<()> {
         let comparison_result = self.depth().cmp(&depth);
 
         if comparison_result != comparator {
-            return Err(CompilationError::new(
+            return Err(CompilationError::with_span(
                 CompilationErrorKind::DepthError { msg: message },
-                None,
+                Some(location.line),
+                location.span,
             ));
         }
 
@@ -842,7 +403,7 @@ impl SemanticAnalyzer {
     /// # Returns
     /// This function does not return any value. It only modifies the internal state by adding a new
     /// context to the `context_stack`.
-    fn begin_scope(&mut self) {
+    pub(super) fn begin_scope(&mut self) {
         self.context_stack.push_empty();
     }
 
@@ -858,252 +419,8 @@ impl SemanticAnalyzer {
     /// # Returns
     /// This function does not return any value. It only modifies the internal state by removing the
     /// top context from the `context_stack`.
-    fn end_scope(&mut self) {
+    pub(super) fn end_scope(&mut self) {
         self.context_stack.pop();
-    }
-
-    /// Analyzes a decorator and its associated attributes.
-    ///
-    /// This function processes a decorator (preceded by a hash token) and ensures it is applied
-    /// correctly to a function signature. It checks if the decorator is used in a valid context (only
-    /// allowed in function signatures) and annotates the decorator with its attributes. If the decorator
-    /// is not used correctly, an error is reported.
-    ///
-    /// # Parameters
-    /// - `hash_token`: A reference to the `Token` representing the `#` symbol used in the decorator.
-    ///   It is used to track the decorator's location for error reporting.
-    /// - `attributes`: A reference to a vector of `Expression` representing the attributes passed
-    ///   to the decorator. These are analyzed and annotated.
-    ///
-    /// # Returns
-    /// This function returns an `AnnotatedStatement` that represents the analyzed decorator. The
-    /// decorator is associated with the `hash_token` and its annotated attributes.
-    ///
-    /// # Errors
-    /// If the decorator is used outside a function signature, an error is reported, indicating that
-    /// decorators are only allowed in function definitions.
-    fn analyze_decorator(
-        &mut self,
-        hash_token: &Token,
-        attributes: &Vec<Expression>,
-    ) -> TyResult<AnnotatedStatement> {
-        let next = self.next();
-
-        match next {
-            Statement::Function(name, params, body, return_kind) => {
-                let mut annotated_attributes = Vec::new();
-
-                for attribute in attributes {
-                    annotated_attributes.push(self.analyze_expr(attribute)?);
-                }
-
-                return Ok(AnnotatedStatement::Decorator(
-                    hash_token.clone(),
-                    annotated_attributes,
-                ));
-            }
-            _ => {
-                return Err(CompilationError::with_span(
-                    CompilationErrorKind::InvalidStatementUsage {
-                        error: format!(
-                            "Decorators are only accepted in function signatures. \x1b[33mAt line {}.\x1b[0m\n\x1b[36mHint:\x1b[0m Move \x1b[32m'#[...]'\x1b[0m to before \x1b[35m'def {}(...) {{...}}'\x1b[0m",
-                            hash_token.line, self.current_symbol
-                        ),
-                    },
-                    Some(hash_token.line),
-                    hash_token.span,
-                ));
-            }
-        }
-    }
-
-    /// Analyzes an `if` statement and generates an annotated statement.
-    ///
-    /// This function processes an `if` statement by analyzing its condition, body, and optional
-    /// else branch. It ensures that the condition is of the correct type (boolean), and the bodies
-    /// of the `if` and `else` branches are valid statements. The function also manages scope creation
-    /// and closure during the analysis of the statement.
-    ///
-    /// # Parameters
-    /// - `keyword`: A reference to the `Token` representing the `if` keyword. It is used to track
-    ///   the statement's location for error reporting.
-    /// - `condition`: A reference to the `Expression` representing the condition of the `if` statement.
-    ///   This expression is validated to ensure it is of type `bool`.
-    /// - `body`: A reference to the `Statement` representing the body of the `if` statement.
-    /// - `else_branch`: An optional reference to a `Box<Statement>` representing the body of the
-    ///   `else` branch. If present, this branch is analyzed as well.
-    ///
-    /// # Returns
-    /// This function returns an `AnnotatedStatement` representing the analyzed `if` statement. The
-    /// returned statement contains the annotated condition, the body of the `if` branch, and the
-    /// body of the `else` branch (if present).
-    ///
-    /// # Errors
-    /// - If the condition is not of type `bool`, an error is reported.
-    /// - If the bodies of the `if` or `else` branches are not valid statements, an error is reported.
-    /// - If the `else` branch contains an invalid statement, an error is reported.
-    fn analyze_if_stmt(
-        &mut self,
-        keyword: &Token,
-        condition: &Expression,
-        body: &Statement,
-        else_branch: &Option<Box<Statement>>,
-    ) -> TyResult<AnnotatedStatement> {
-        let annotated_condition = self.analyze_expr(condition)?;
-        self.assert_expression_kind(
-            condition,
-            self.get_static_kind_by_name("bool", condition)?,
-            condition,
-        )?;
-
-        self.begin_scope();
-
-        let mut annotated_body = Vec::new();
-
-        match body {
-            Statement::Scope(stmts) => {
-                for stmt in stmts {
-                    for s in self.analyze_stmt(stmt)? {
-                        annotated_body.push(Box::new(s));
-                    }
-                }
-            }
-            _ => {
-                return Err(CompilationError::new(
-                    CompilationErrorKind::InvalidStatementScope {
-                        statement: format!("{:?}", body),
-                    },
-                    None,
-                ));
-            }
-        }
-
-        self.end_scope();
-
-        let mut annotated_else = Vec::new();
-
-        match else_branch {
-            Some(stmt) => match stmt.as_ref() {
-                Statement::Scope(stmts) => {
-                    self.begin_scope();
-
-                    for stmt in stmts {
-                        for s in self.analyze_stmt(stmt)? {
-                            annotated_else.push(Box::new(s));
-                        }
-                    }
-
-                    self.end_scope();
-
-                    Ok(AnnotatedStatement::If(
-                        keyword.clone(),
-                        annotated_condition,
-                        Box::new(AnnotatedStatement::Scope(annotated_body)),
-                        Some(Box::new(AnnotatedStatement::Scope(annotated_else))),
-                    ))
-                }
-                Statement::If(keyword, condition, body, else_branch) => {
-                    let annotated_else_branch =
-                        self.analyze_if_stmt(keyword, condition, body, else_branch)?;
-                    return Ok(AnnotatedStatement::If(
-                        keyword.clone(),
-                        annotated_condition,
-                        Box::new(AnnotatedStatement::Scope(annotated_body)),
-                        Some(Box::new(annotated_else_branch)),
-                    ));
-                }
-                _ => gpp_error!("Statement {:?} is not allowed here.", stmt),
-            },
-
-            None => Ok(AnnotatedStatement::If(
-                keyword.clone(),
-                annotated_condition,
-                Box::new(AnnotatedStatement::Scope(annotated_body)),
-                None,
-            )),
-        }
-    }
-
-    /// Analyzes an expression and generates an annotated expression.
-    ///
-    /// This function processes various types of expressions, including literals, unary operations,
-    /// arithmetic expressions, logical expressions, assignments, and function calls. Depending on the
-    /// expression type, it delegates the analysis to the appropriate helper function for more specific
-    /// processing. Unsupported expression types are marked as TODO for future implementation.
-    ///
-    /// # Parameters
-    /// - `expr`: A reference to the `Expression` that needs to be analyzed. The expression can be
-    ///   of various types, such as a literal, unary operation, or function call.
-    ///
-    /// # Returns
-    /// This function returns an `AnnotatedExpression` that represents the analyzed expression. The
-    /// return type depends on the specific type of expression being processed.
-    ///
-    /// # Supported Expression Types
-    /// - `Expression::Void`: Returns `AnnotatedExpression::Void`.
-    /// - `Expression::Literal`: Processes a literal expression and returns the result of `analyze_literal`.
-    /// - `Expression::Unary`: Analyzes a unary expression and returns the result of `analyze_unary_expr`.
-    /// - `Expression::Arithmetic`: Analyzes an arithmetic expression and returns the result of `analyze_arithmetic_expr`.
-    /// - `Expression::Logical`: Analyzes a logical expression and returns the result of `analyze_logical_expr`.
-    /// - `Expression::Assign`: Analyzes an assignment expression and returns the result of `analyze_assignment_expr`.
-    /// - `Expression::Call`: Analyzes a function call expression and returns the result of `analyze_call_expression`.
-    /// - `Expression::List`: Analyzes a list expression and returns the result of `analyze_collection`.
-    /// - `Expression::Group`: Recursively analyzes a grouped expression using `analyze_expr`.
-    ///
-    /// # Unsupported Expression Types
-    /// - `Expression::Ternary`: Not yet implemented.
-    /// - `Expression::Lambda`: Not yet implemented.
-    /// - `Expression::Tuple`: Not yet implemented.
-    /// - `Expression::TypeComposition`: Not yet implemented.
-    /// - `Expression::Attribute`: Not yet implemented.
-    /// - `Expression::Set`: Not yet implemented.
-    ///
-    /// # Errors
-    /// This function does not return an error itself, but it delegates the analysis to other functions
-    /// that may report errors depending on the expression type.
-    fn analyze_expr(&mut self, expr: &Expression) -> TyResult<AnnotatedExpression> {
-        match expr.clone() {
-            Expression::Void => Ok(AnnotatedExpression::Void),
-            Expression::Literal(token, span) => self.analyze_literal(token),
-            Expression::PostFix(operator, variable, span) => {
-                self.analyze_postfix_expr(&operator, &variable)
-            }
-            Expression::Unary(token, expression, span) => {
-                self.analyze_unary_expr(token, &expression)
-            }
-            Expression::Arithmetic(left, op, right, span) => {
-                self.analyze_arithmetic_expr(&left, &op, &right)
-            }
-            Expression::Logical(left, op, right, span) => {
-                self.analyze_logical_expr(&left, &op, &right)
-            }
-            Expression::Ternary(expression, expression1, expression2, span) => todo!(),
-            Expression::Assign(token, expression, span) => {
-                self.analyze_assignment_expr(token, &expression)
-            }
-            Expression::Lambda => todo!(),
-            Expression::Get(expression, token, span) => self.analyze_get_expr(&expression, token),
-            Expression::Variable(token, span) => self.analyze_variable_get_expr(token),
-            Expression::Set(target, name, value, span) => {
-                self.analyze_set_expr(target, name, value)
-            }
-            Expression::Call(callee, paren, args, span) => {
-                self.analyze_call_expression(&callee, &paren, &args)
-            }
-            Expression::Tuple(expressions, span) => todo!(),
-            Expression::List(expressions, span) => self.analyze_collection(expr),
-            Expression::TypeComposition(names, span) => todo!(),
-            Expression::Attribute(token, expressions, span) => {
-                self.analyze_attribute(token, expressions)
-            }
-            Expression::Group(expression, span) => self.analyze_expr(&expression),
-            Expression::ListGet(expression, index, span) => {
-                self.analyze_list_get_expr(expression, index)
-            }
-            Expression::ListSet(list, index, value, span) => {
-                self.analyze_list_set_expr(list, index, value)
-            }
-        }
     }
 
     /// Retrieves the next statement in the sequence of statements.
@@ -1115,7 +432,7 @@ impl SemanticAnalyzer {
     /// # Returns
     /// - If there is a next statement, it returns a cloned reference to the next statement.
     /// - If there is no next statement, it returns `Statement::EndCode` to indicate the end of the code sequence.
-    fn next(&self) -> Statement {
+    pub(super) fn next(&self) -> Statement {
         match self.statements.get(self.current_stmt + 1) {
             None => Statement::EndCode,
             Some(stmt) => stmt.clone(),
@@ -1211,157 +528,8 @@ impl SemanticAnalyzer {
     ///
     /// # Returns
     /// - A mutable reference to the current `ContextScope` at the top of the context stack.
-    fn context(&mut self) -> &mut ContextScope {
+    pub(crate) fn context(&mut self) -> &mut ContextScope {
         self.context_stack.peek()
-    }
-
-    /// Analyzes a unary expression and returns the corresponding annotated expression.
-    ///
-    /// This function handles unary operators such as `-` (negation) and `!` (logical negation). It checks
-    /// the type of the operand and applies the appropriate checks. If the operator is applied to an invalid
-    /// operand type, an error is raised.
-    ///
-    /// # Parameters
-    /// - `token`: The token representing the operator (`-` or `!`).
-    /// - `expression`: The expression to which the unary operator is applied.
-    ///
-    /// # Returns
-    /// - An `AnnotatedExpression` representing the analyzed unary expression.
-    fn analyze_unary_expr(
-        &mut self,
-        token: Token,
-        expression: &Expression,
-    ) -> TyResult<AnnotatedExpression> {
-        match token.kind {
-            TokenKind::Operator(op) => match op {
-                OperatorKind::Minus => {
-                    let expr_type = self.resolve_expr_type(&expression)?;
-
-                    self.assert_archetype_kind(
-                        &expression,
-                        self.get_static_kind_by_name("number", expression)?,
-                        "'-' operator only be applyed in numbers.",
-                    )?;
-
-                    Ok(AnnotatedExpression::Unary(
-                        token.clone(),
-                        Box::new(self.analyze_expr(expression)?),
-                        expr_type,
-                    ))
-                }
-
-                OperatorKind::Not => {
-                    let expr_type = self.resolve_expr_type(&expression)?;
-
-                    self.assert_archetype_kind(
-                        &expression,
-                        self.get_static_kind_by_name("number", expression)?,
-                        "'not' operator only be applyed in booleans.",
-                    )?;
-
-                    Ok(AnnotatedExpression::Unary(
-                        token.clone(),
-                        Box::new(self.analyze_expr(expression)?),
-                        expr_type,
-                    ))
-                }
-                _ => {
-                    gpp_error!("Invalid unary operation at line {}.", token.line);
-                }
-            },
-
-            _ => gpp_error!("Invalid unary operation at line {}.", token.line),
-        }
-    }
-
-    /// Resolves and returns the type descriptor for the given expression.
-    ///
-    /// This function inspects the expression and resolves its type, returning a `TypeDescriptor` that
-    /// corresponds to the type of the expression. It handles various expression types, including literals,
-    /// unary operations, and arithmetic operations. If the expression's type cannot be resolved, an error is raised.
-    ///
-    /// # Parameters
-    /// - `expression`: A reference to the expression whose type is being resolved.
-    ///
-    /// # Returns
-    /// - A `TypeDescriptor` representing the type of the given expression.
-    ///
-    /// # Errors
-    /// - If the expression type cannot be determined or is unsupported, an error is raised.
-    fn resolve_expr_type(
-        &mut self,
-        expression: &Expression,
-    ) -> TyResult<Rc<RefCell<TypeDescriptor>>> {
-        match expression {
-            Expression::List(elements, span) => self.get_static_kind_by_name("list", expression),
-            Expression::Literal(token, span) => match token.kind {
-                TokenKind::Identifier => self.resolve_identifier_type(token),
-                TokenKind::Literal(literal) => match literal {
-                    Literal::String => Ok(self.get_symbol("str").unwrap().kind.clone()),
-                    Literal::Float => Ok(self.get_symbol("float").unwrap().kind.clone()),
-                    Literal::Int => Ok(self.get_symbol("int").unwrap().kind.clone()),
-                    Literal::Boolean => Ok(self.get_symbol("bool").unwrap().kind.clone()),
-                },
-                _ => gpp_error!("Expect literal in line {}.", token.line),
-            },
-            Expression::Unary(_, expression, span) => self.resolve_expr_type(&expression),
-            Expression::Arithmetic(left, op, right, span) => {
-                if let TokenKind::Operator(operator) = op.kind {
-                    match operator {
-                        OperatorKind::Plus
-                        | OperatorKind::Minus
-                        | OperatorKind::Star
-                        | OperatorKind::Slash => {
-                            return self.resolve_expr_type(&left);
-                        }
-
-                        OperatorKind::Greater
-                        | OperatorKind::GreaterEqual
-                        | OperatorKind::Less
-                        | OperatorKind::NotEqual
-                        | OperatorKind::EqualEqual => {
-                            return self.get_static_kind_by_name("bool", expression);
-                        }
-
-                        _ => gpp_error!("Invalid arithmetic operator."),
-                    }
-                }
-
-                gpp_error!("Invalid arithmetic operator.");
-            }
-            Expression::Logical(left, _, _, span) => {
-                let left_type = self.resolve_expr_type(&left)?;
-
-                if left_type != self.get_symbol("bool").unwrap().kind {
-                    gpp_error!("Expected boolean type for logical expression.");
-                }
-                Ok(left_type)
-            }
-            Expression::Ternary(cond, true_expr, false_expr, span) => {
-                let cond_type = self.resolve_expr_type(&cond)?;
-                let true_type = self.resolve_expr_type(&true_expr)?;
-                let false_type = self.resolve_expr_type(&false_expr)?;
-
-                if true_type != false_type {
-                    gpp_error!("Types of both branches of the ternary expression must match.");
-                }
-                Ok(true_type)
-            }
-            Expression::Variable(name, span) => self.resolve_identifier_type(name),
-            Expression::Assign(_, expr, span) => self.resolve_expr_type(expr),
-            Expression::Lambda => {
-                gpp_error!("Lambda expressions are currently not supported.")
-            }
-            Expression::TypeComposition(mask, span) => self.resolve_type_composition(mask),
-            Expression::Call(callee, paren, args, span) => {
-                self.resolve_function_return_type(callee, paren, args)
-            }
-            Expression::Get(object, token, span) => self.resolve_get_expr(object, token),
-            Expression::Group(expression, span) => self.resolve_expr_type(&expression),
-            Expression::Void => Ok(self.get_void_instance()),
-            Expression::ListGet(list, index, span) => self.resolve_list_get_type(list, index),
-            _ => gpp_error!("Expression {expression:?} are not supported."),
-        }
     }
 
     /// Returns a reference to the predefined "void" type instance.
@@ -1371,7 +539,7 @@ impl SemanticAnalyzer {
     ///
     /// # Returns
     /// - A clone of the "void" type instance.
-    fn get_void_instance(&mut self) -> Rc<RefCell<TypeDescriptor>> {
+    pub(super) fn get_void_instance(&mut self) -> Rc<RefCell<TypeDescriptor>> {
         self.void_instance.clone()
     }
 
@@ -1385,7 +553,7 @@ impl SemanticAnalyzer {
     ///
     /// # Returns
     /// - An `Option` containing the `StaticValue` associated with the symbol if it exists, or `None` if not.
-    fn get_symbol(&self, name: &str) -> Option<&StaticValue> {
+    pub(super) fn get_symbol(&self, name: &str) -> Option<&StaticValue> {
         self.symbol_table.get(name)
     }
 
@@ -1420,9 +588,13 @@ impl SemanticAnalyzer {
     ///
     /// # Errors
     /// - Raises an error if the identifier is not found or if its type is unknown.
-    fn resolve_identifier_type(&mut self, token: &Token) -> TyResult<Rc<RefCell<TypeDescriptor>>> {
+    pub(crate) fn resolve_identifier_type(
+        &mut self,
+        token: &Token,
+    ) -> TyResult<Rc<RefCell<TypeDescriptor>>> {
         self.require_depth(
             Ordering::Greater,
+            token,
             0,
             format!(
                 "Get identifier value is only allowed inside functions. At line {}.",
@@ -1479,7 +651,7 @@ impl SemanticAnalyzer {
     ///
     /// # Errors
     /// - Raises an error if the symbol is not found in the current context or any parent contexts.
-    fn get_name_in_depth(&mut self, name: &Token) -> TyResult<Option<SemanticValue>> {
+    pub(crate) fn get_name_in_depth(&mut self, name: &Token) -> TyResult<Option<SemanticValue>> {
         let mut i = self.context_stack.len() - 1;
 
         loop {
@@ -1506,77 +678,6 @@ impl SemanticAnalyzer {
         ))
     }
 
-    /// Analyzes an assignment expression, ensuring the assigned value matches the variable's type.
-    ///
-    /// This function checks that the variable being assigned a value has been declared, and that the type
-    /// of the value being assigned matches the type of the variable. If the types do not match, an error is raised.
-    /// If the variable's type is not yet inferred, it infers the type of the variable based on the assigned value.
-    ///
-    /// # Parameters
-    /// - `token`: The token representing the variable being assigned to.
-    /// - `expression`: The expression on the right-hand side of the assignment.
-    ///
-    /// # Returns
-    /// - An `AnnotatedExpression` representing the assignment expression, including the assigned value and its type.
-    ///
-    /// # Errors
-    /// - Raises an error if the variable is not declared or if the types of the variable and the assigned value do not match.
-    fn analyze_assignment_expr(
-        &mut self,
-        token: Token,
-        expression: &Expression,
-    ) -> TyResult<AnnotatedExpression> {
-        let symbol = self.get_name_in_depth(&token)?;
-
-        match symbol {
-            Some(sv) => {
-                let value = self.analyze_expr(&expression)?;
-
-                let value_type = self.resolve_expr_type(&expression)?;
-                let symbol_type = sv.kind;
-
-                if let Some(kind) = &symbol_type {
-                    if kind.borrow().name == "void" {
-                        gpp_error!("Cannot assign 'void' to variables. At line {}.", token.line);
-                    }
-                }
-
-                if value_type.borrow().name == "void" {
-                    gpp_error!("Cannot assign 'void' to variables. At line {}.", token.line);
-                }
-
-                match symbol_type {
-                    Some(kind) => {
-                        if kind.borrow().id != value_type.borrow().id {
-                            gpp_error!(
-                                "Cannot assign '{}' with '{}' instance. At line {}.",
-                                kind.borrow().name,
-                                value_type.borrow().name,
-                                token.line
-                            );
-                        }
-
-                        Ok(AnnotatedExpression::Assign(
-                            token.clone(),
-                            Box::new(value),
-                            kind,
-                        ))
-                    }
-                    None => {
-                        self.context()
-                            .set_infered_kind(&token.lexeme, value_type.clone());
-                        Ok(AnnotatedExpression::Assign(
-                            token.clone(),
-                            Box::new(value),
-                            value_type,
-                        ))
-                    }
-                }
-            }
-            None => gpp_error!("The name '{}' are not declared here.", token.lexeme),
-        }
-    }
-
     /// Asserts that the given expression matches the expected type.
     ///
     /// This function checks if the type of the given expression matches the expected type. If the types do
@@ -1589,7 +690,7 @@ impl SemanticAnalyzer {
     ///
     /// # Errors
     /// - Raises an error if the type of the expression does not match the expected type.
-    fn assert_expression_kind(
+    pub(crate) fn assert_expression_kind(
         &mut self,
         expr: &Expression,
         expected_kind: Rc<RefCell<TypeDescriptor>>,
@@ -1625,7 +726,7 @@ impl SemanticAnalyzer {
     ///
     /// # Panics
     /// - Panics if the symbol does not exist in the symbol table.
-    fn get_static_kind_by_name(
+    pub(crate) fn get_static_kind_by_name(
         &self,
         name: &str,
         location: &Expression,
@@ -1643,189 +744,8 @@ impl SemanticAnalyzer {
         }
     }
 
-    fn get_static_kind_by_id(&self, id: u32) -> Rc<RefCell<TypeDescriptor>> {
+    pub(super) fn get_static_kind_by_id(&self, id: u32) -> Rc<RefCell<TypeDescriptor>> {
         self.symbol_table.get_type_by_id(id).unwrap()
-    }
-
-    /// Analyzes a variable reference expression.
-    ///
-    /// This function resolves the type of a variable reference by looking up the variable in the context
-    /// stack. It returns an annotated expression for the variable reference, including the variable's type.
-    ///
-    /// # Parameters
-    /// - `token`: The token representing the variable being referenced.
-    ///
-    /// # Returns
-    /// - An `AnnotatedExpression` representing the variable reference, including its type.
-    ///
-    /// # Errors
-    /// - Raises an error if the variable is not declared or if its type is unknown.
-    fn analyze_variable_get_expr(&mut self, token: Token) -> TyResult<AnnotatedExpression> {
-        let kind = match self.get_name_in_depth(&token)? {
-            Some(v) => match v.kind {
-                Some(k) => k,
-                None => {
-                    return Err(CompilationError::with_span(
-                        CompilationErrorKind::UsageOfNotInferredVariable {
-                            name: token.lexeme.clone(),
-                        },
-                        Some(token.line),
-                        token.span,
-                    ));
-                }
-            },
-            None => {
-                return Err(CompilationError::with_span(
-                    CompilationErrorKind::UsageOfNotInferredVariable {
-                        name: token.lexeme.clone(),
-                    },
-                    Some(token.line),
-                    token.span,
-                ));
-            }
-        };
-        Ok(AnnotatedExpression::Variable(token, kind))
-    }
-
-    /// Analyzes a literal expression and resolves its type.
-    ///
-    /// This function creates an annotated expression for a literal, determining its type based on the token
-    /// representing the literal.
-    ///
-    /// # Parameters
-    /// - `token`: The token representing the literal value.
-    ///
-    /// # Returns
-    /// - An `AnnotatedExpression` representing the literal, including its type.
-    fn analyze_literal(&self, token: Token) -> TyResult<AnnotatedExpression> {
-        Ok(AnnotatedExpression::Literal(
-            token.clone(),
-            self.resolve_literal_kind(&token)?,
-        ))
-    }
-
-    /// Analyzes an arithmetic expression (binary operation) involving two operands.
-    ///
-    /// This function checks the types of the left and right operands, ensuring they are valid for the
-    /// given arithmetic operator. It verifies that both operands are of compatible types (e.g., numbers)
-    /// and raises an error if the types do not match the expected kind. The operator kind (e.g., plus, minus)
-    /// is also validated for its compatibility with the operand types.
-    ///
-    /// # Parameters
-    /// - `left`: The left operand of the arithmetic expression.
-    /// - `token`: The token representing the operator.
-    /// - `right`: The right operand of the arithmetic expression.
-    ///
-    /// # Returns
-    /// - An `AnnotatedExpression` representing the result of the arithmetic operation, with the operator
-    ///   and types validated.
-    ///
-    /// # Errors
-    /// - Raises an error if the operands are incompatible with the operation, or if the operator is invalid
-    ///   for the operands' types.
-    fn analyze_arithmetic_expr(
-        &mut self,
-        left: &Expression,
-        token: &Token,
-        right: &Expression,
-    ) -> TyResult<AnnotatedExpression> {
-        let annotated_left;
-        let annotated_right;
-
-        if !matches!(left, Expression::Literal(literal, span)) {
-            annotated_left = self.analyze_expr(&left)?;
-        } else {
-            if let Expression::Literal(l, span) = left {
-                annotated_left = self.analyze_literal(l.clone())?;
-            } else {
-                gpp_error!(
-                    "Invalid literal '{}' kind. At line {}.",
-                    token.lexeme,
-                    token.line
-                );
-            }
-        }
-
-        if !matches!(right, Expression::Literal(literal, span)) {
-            annotated_right = self.analyze_expr(&right)?;
-        } else {
-            if let Expression::Literal(l, span) = right {
-                annotated_right = self.analyze_literal(l.clone())?;
-            } else {
-                gpp_error!(
-                    "Invalid literal '{}' kind. At line {}.",
-                    token.lexeme,
-                    token.line
-                );
-            }
-        }
-
-        let left_kind = self.resolve_expr_type(&left)?;
-        let right_kind = self.resolve_expr_type(&right)?;
-
-        if let TokenKind::Operator(op) = token.kind {
-            match op {
-                OperatorKind::Plus
-                | OperatorKind::Minus
-                | OperatorKind::Star
-                | OperatorKind::Slash
-                | OperatorKind::Greater
-                | OperatorKind::GreaterEqual
-                | OperatorKind::Less
-                | OperatorKind::LessEqual => {
-                    let msg = format!(
-                        "Cannot apply arithmetic operation '{}' to '{}' and '{}'. At line {}.",
-                        token.lexeme,
-                        left_kind.borrow().name,
-                        right_kind.borrow().name,
-                        token.line
-                    );
-
-                    self.assert_archetype_kind(
-                        &left,
-                        self.get_static_kind_by_name("number", left)?,
-                        &msg,
-                    )?;
-
-                    self.assert_archetype_kind(
-                        &right,
-                        self.get_static_kind_by_name("number", right)?,
-                        &msg,
-                    )?;
-
-                    Ok(AnnotatedExpression::Arithmetic(
-                        Box::new(self.analyze_expr(left)?),
-                        token.clone(),
-                        Box::new(self.analyze_expr(right)?),
-                        left_kind,
-                    ))
-                }
-
-                OperatorKind::EqualEqual | OperatorKind::NotEqual => {
-                    let expected_kind = self.resolve_expr_type(left)?;
-                    self.assert_expression_kind(&right, expected_kind, left);
-
-                    Ok(AnnotatedExpression::Arithmetic(
-                        Box::new(self.analyze_expr(left)?),
-                        token.clone(),
-                        Box::new(self.analyze_expr(right)?),
-                        left_kind,
-                    ))
-                }
-
-                _ => gpp_error!(
-                    "Invalid arithmetic operator '{}'. At line {}.",
-                    token.lexeme,
-                    token.line
-                ),
-            }
-        } else {
-            gpp_error!(
-                "Invalid arithmetic operator '{}'. At line {}.",
-                token.lexeme,
-                token.line
-            );
-        }
     }
 
     /// Checks whether two types are the same kind (i.e., have the same type ID).
@@ -1860,7 +780,7 @@ impl SemanticAnalyzer {
     /// - If the type does not conform, an error is raised with a detailed message.
     ///
     /// This function ensures that expressions match the expected type constraints, enforcing type safety.
-    fn assert_archetype_kind(
+    pub(crate) fn assert_archetype_kind(
         &mut self,
         expr: &Expression,
         archetype_source: Rc<RefCell<TypeDescriptor>>,
@@ -1891,245 +811,6 @@ impl SemanticAnalyzer {
         Ok(())
     }
 
-    /// Infers the type of a list based on its elements.
-    ///
-    /// # Parameters
-    /// - `elements`: A slice of Rced expressions representing the elements of the list.
-    ///
-    /// # Returns
-    /// - A `TypeDecl` representing the inferred type of the list.
-    ///
-    /// # Type Inference Process
-    /// 1. If the list is empty, an error is raised because type inference is impossible.
-    /// 2. If the list contains only one element, the type of that element is used as the list type.
-    /// 3. Otherwise, the function:
-    ///    - Resolves the type of each element.
-    ///    - Collects all unique archetypes found across the elements.
-    ///    - Identifies archetypes that are common to all elements.
-    ///    - Determines the final list type based on these common archetypes.
-    ///
-    /// The inferred type is printed for debugging purposes before being returned.
-    fn resolve_list_type(
-        &mut self,
-        elements: &[Rc<Expression>],
-    ) -> TyResult<Rc<RefCell<TypeDescriptor>>> {
-        if elements.is_empty() {
-            gpp_error!("Cannot infer type of empty list. At least one element is required.");
-        }
-
-        let first_type = self.resolve_expr_type(&elements[0])?;
-
-        if elements.len() == 1 {
-            return Ok(first_type);
-        }
-
-        let mut common_archetypes: HashSet<Archetype> = first_type.borrow().archetypes.clone();
-
-        for element in &elements[1..] {
-            let element_type = self.resolve_expr_type(&element)?;
-            common_archetypes.retain(|arch| element_type.borrow().archetypes.contains(arch));
-        }
-
-        if common_archetypes.is_empty() {
-            gpp_error!("Cannot infer list kind. No common archetypes found.");
-        }
-
-        let archetypes_vec: Vec<Archetype> = common_archetypes.into_iter().collect();
-
-        let infered_type = self.get_by_archetype(&archetypes_vec);
-
-        match infered_type {
-            Some(kind) => {
-                println!("Infered list kind: {}.", kind.borrow().name);
-                Ok(kind)
-            }
-            None => gpp_error!("Cannot find type with specified archetypes: {archetypes_vec:?}."),
-        }
-    }
-
-    /// Analyzes a collection expression (e.g., a list or set of elements).
-    ///
-    /// This function processes a collection expression, ensuring its elements are valid and their types
-    /// are correctly inferred. If the expression is a list, it iterates over its elements, annotates them
-    /// with their respective types, and returns an `AnnotatedExpression` representing the list.
-    ///
-    /// # Parameters
-    /// - `collection`: The collection expression to be analyzed.
-    ///
-    /// # Returns
-    /// - An `AnnotatedExpression` representing the collection, with its elements' types annotated.
-    ///
-    /// # Errors
-    /// - Raises an error if the collection is of an invalid kind (i.e., not a list).
-    fn analyze_collection(&mut self, collection: &Expression) -> TyResult<AnnotatedExpression> {
-        let kind = self.resolve_iterator_kind(collection)?;
-
-        if let Expression::List(elements, span) = collection {
-            let mut annotated_elements = Vec::new();
-
-            for element in elements {
-                annotated_elements.push(Box::new(self.analyze_expr(element)?));
-            }
-
-            Ok(AnnotatedExpression::List(annotated_elements, kind))
-        } else {
-            gpp_error!("Invalid collection kind.");
-        }
-    }
-
-    /// Analyzes a function call expression.
-    ///
-    /// This function processes a function call expression, ensuring that the callee is a valid function
-    /// and that the correct number of arguments is passed. It checks the arity of the function, verifies
-    /// that the argument types match the function's parameter types, and returns an `AnnotatedExpression`
-    /// representing the function call. If the callee is recursive or not declared, an error is raised.
-    ///
-    /// # Parameters
-    /// - `callee`: The expression representing the function being called.
-    /// - `paren`: The token representing the opening parenthesis of the function call.
-    /// - `args`: A vector of expressions representing the arguments of the function call.
-    ///
-    /// # Returns
-    /// - An `AnnotatedExpression` representing the function call with annotated arguments.
-    ///
-    /// # Errors
-    /// - Raises an error if the function is recursive, not declared, or if the wrong number of arguments
-    ///   is passed.
-    fn analyze_call_expression(
-        &mut self,
-        callee: &Expression,
-        paren: &Token,
-        args: &Vec<Expression>,
-    ) -> TyResult<AnnotatedExpression> {
-        let mut annotated_args = Vec::new();
-
-        for arg in args {
-            annotated_args.push(Box::new(self.analyze_expr(arg)?));
-        }
-
-        if let Expression::Variable(name, span) = callee {
-            if self.current_symbol.clone() == name.lexeme.clone() {
-                gpp_error!(
-                    "Recursive calls are not allowed in current version. At line {}.",
-                    name.line
-                );
-            }
-            match self.get_function(&name.lexeme.clone()) {
-                Some(prototype) => {
-                    let prototype = prototype.clone();
-
-                    if prototype.arity != args.len() {
-                        gpp_error!(
-                            "Expect {} arguments, but got {}. At line {}.",
-                            prototype.arity,
-                            args.len(),
-                            paren.line
-                        );
-                    }
-
-                    self.assert_function_args(prototype.clone(), args, paren);
-                    Ok(AnnotatedExpression::Call(
-                        prototype.clone(),
-                        paren.clone(),
-                        annotated_args,
-                        prototype.return_kind.clone(),
-                    ))
-                }
-                None => match self.get_native_function(&name.lexeme.clone()) {
-                    Some(prototype) => {
-                        let prototype = prototype.clone();
-
-                        if prototype.arity != args.len() {
-                            gpp_error!(
-                                "Expect {} arguments, but got {}. At line {}.",
-                                prototype.arity,
-                                args.len(),
-                                paren.line
-                            );
-                        }
-
-                        self.assert_function_args(prototype.clone(), args, paren);
-                        Ok(AnnotatedExpression::CallNative(
-                            prototype.clone(),
-                            paren.clone(),
-                            annotated_args,
-                            prototype.return_kind.clone(),
-                        ))
-                    }
-
-                    None => {
-                        gpp_error!(
-                            "Function '{}' are not declared in this scope. At line {}.",
-                            name.lexeme.clone(),
-                            name.line
-                        )
-                    }
-                },
-            }
-        } else {
-            match callee {
-                Expression::Get(callee, token, span) => {
-                    let method = self.analyze_method_get(&callee, token.clone())?;
-                    let mut annotated_args: Vec<Box<AnnotatedExpression>> = Vec::new();
-
-                    if args.len() != method.params.len() - 1 {
-                        println!(
-                            "Expect {} arguments, but got {}. At line {}.",
-                            method.arity,
-                            args.len(),
-                            paren.line
-                        );
-                    }
-
-                    annotated_args.push(Box::new(self.analyze_expr(&callee)?));
-
-                    if method.arity > 1 {
-                        for i in 0..(args.len()) {
-                            let param_kind = &method.params[i + 1];
-                            let arg_kind = self.resolve_expr_type(&args[i])?;
-
-                            self.assert_archetype_kind(
-                                &args[i],
-                                param_kind.kind.clone(),
-                                format!(
-                                    "Expect '{}' to '{}' param, but got '{}'. At line {}.",
-                                    param_kind.name,
-                                    method.params[i + 1].name,
-                                    param_kind.name,
-                                    paren.line,
-                                )
-                                .as_str(),
-                            );
-
-                            let annotated_arg = self.analyze_expr(&args[i])?;
-                            annotated_args.push(Box::new(annotated_arg));
-                        }
-                    }
-
-                    return Ok(AnnotatedExpression::CallMethod(
-                        Box::new(self.analyze_expr(&callee)?),
-                        method,
-                        annotated_args,
-                    ));
-                }
-
-                Expression::Literal(token, span) => {
-                    let literal_kind = self.resolve_literal_kind(token)?;
-                    println!("{:?}", literal_kind);
-                }
-
-                _ => {
-                    gpp_error!("Call expression used in {:?} value.", dbg!(callee));
-                }
-            }
-
-            gpp_error!(
-                "Call functions inside modules are currently not allowed {}.",
-                dbg!(callee)
-            );
-        }
-    }
-
     /// Defines a new function in the symbol table.
     ///
     /// This function adds a function prototype to the symbol table, associating it with the specified
@@ -2143,7 +824,7 @@ impl SemanticAnalyzer {
     /// ```rust
     /// define_function("my_function".to_string(), my_function_prototype);
     /// ```
-    fn define_function(&mut self, name: String, value: FunctionPrototype) {
+    pub(super) fn define_function(&mut self, name: String, value: FunctionPrototype) {
         self.symbol_table.define_function(name, value);
     }
 
@@ -2163,7 +844,7 @@ impl SemanticAnalyzer {
     ///
     /// # Errors
     /// - Raises an error if the function is not declared in the current scope or if the callee is not a valid function call.
-    fn resolve_function_return_type(
+    pub(super) fn resolve_function_return_type(
         &mut self,
         callee: &Expression,
         paren: &Token,
@@ -2208,7 +889,7 @@ impl SemanticAnalyzer {
     ///
     /// # Errors
     /// - Raises an error if any of the argument types do not match the expected types.
-    fn assert_function_args(
+    pub(crate) fn assert_function_args(
         &mut self,
         prototype: FunctionPrototype,
         args: &Vec<Expression>,
@@ -2251,36 +932,8 @@ impl SemanticAnalyzer {
     /// ```rust
     /// let function = get_function("my_function");
     /// ```
-    fn get_function(&mut self, name: &str) -> Option<&mut FunctionPrototype> {
+    pub(crate) fn get_function(&mut self, name: &str) -> Option<&mut FunctionPrototype> {
         self.symbol_table.get_function(name)
-    }
-
-    /// Resolves the type of an expression based on a path of tokens.
-    ///
-    /// This function resolves a type by following a sequence of tokens, ensuring that modules are
-    /// not used, as they are currently unsupported. The path should contain a single token representing
-    /// the type's name.
-    ///
-    /// # Parameters
-    /// - `path`: A vector of tokens representing the path to the type.
-    ///
-    /// # Returns
-    /// - A `TypeDescriptor` representing the resolved type.
-    ///
-    /// # Errors
-    /// - Raises an error if the path has more than one token, indicating unsupported module usage.
-    fn resolve_type(&self, path: Vec<Token>) -> TyResult<Rc<RefCell<TypeDescriptor>>> {
-        if path.len() != 1 {
-            gpp_error!(
-                "Modules are currently not supported. At line {}.",
-                path[0].line
-            );
-        } else {
-            self.get_static_kind_by_name(
-                &path.first().unwrap().lexeme,
-                &Expression::Literal(path.first().unwrap().clone(), path.first().unwrap().span),
-            )
-        }
     }
 
     /// Defines a local variable in the current context.
@@ -2291,40 +944,8 @@ impl SemanticAnalyzer {
     /// # Parameters
     /// - `name`: The name of the variable being declared.
     /// - `value`: The `SemanticValue` associated with the variable, containing type and other details.
-    fn define_local(&mut self, name: &str, value: SemanticValue) {
+    pub(super) fn define_local(&mut self, name: &str, value: SemanticValue) {
         self.context().declare_name(name, value);
-    }
-
-    /// Resolves the type of an iterator expression (e.g., for lists or function calls).
-    ///
-    /// This function determines the type of an iterator expression. It handles different types of
-    /// iterator expressions, such as lists and function calls, and ensures that the correct type
-    /// is inferred based on the expression's context.
-    ///
-    /// # Parameters
-    /// - `iterator`: The iterator expression whose type is to be resolved.
-    ///
-    /// # Returns
-    /// - A `TypeDescriptor` representing the type of the iterator expression.
-    ///
-    /// # Errors
-    /// - Raises an error if the iterator expression is not a list or a function call.
-    fn resolve_iterator_kind(
-        &mut self,
-        iterator: &Expression,
-    ) -> TyResult<Rc<RefCell<TypeDescriptor>>> {
-        let expr_kind = self.resolve_expr_type(iterator);
-
-        match iterator {
-            Expression::List(elements, span) => self.resolve_list_type(&elements),
-            Expression::Call(callee, paren, args, span) => {
-                self.analyze_call_expression(callee, paren, args);
-                self.resolve_function_return_type(callee, paren, args)
-            }
-            _ => {
-                gpp_error!("Expect list, but got {:?}.", iterator);
-            }
-        }
     }
 
     /// Retrieves a `TypeDescriptor` that matches a set of archetypes.
@@ -2342,7 +963,10 @@ impl SemanticAnalyzer {
     /// ```rust
     /// let result = get_by_archetype(&[Archetype::new("object".to_string())]);
     /// ```
-    fn get_by_archetype(&mut self, sets: &[Archetype]) -> Option<Rc<RefCell<TypeDescriptor>>> {
+    pub(super) fn get_by_archetype(
+        &mut self,
+        sets: &[Archetype],
+    ) -> Option<Rc<RefCell<TypeDescriptor>>> {
         let target_set: HashSet<_> = sets.iter().cloned().collect();
 
         match self
@@ -2353,206 +977,6 @@ impl SemanticAnalyzer {
         {
             Some((name, value)) => Some(value.kind.clone()),
             None => None,
-        }
-    }
-
-    /// Analyzes a logical expression (e.g., `&&`, `||`) and ensures both operands are boolean.
-    ///
-    /// This function checks that both operands of the logical expression are of type `bool` and
-    /// then annotates the expression accordingly.
-    ///
-    /// # Parameters
-    /// - `left`: The left operand of the logical expression.
-    /// - `op`: The operator (`&&` or `||`).
-    /// - `right`: The right operand of the logical expression.
-    ///
-    /// # Returns
-    /// - An `AnnotatedExpression` representing the logical expression, including the operator and operands.
-    ///
-    /// # Errors
-    /// - Raises an error if either operand is not of type `bool`.
-    fn analyze_logical_expr(
-        &mut self,
-        left: &Expression,
-        op: &Token,
-        right: &Expression,
-    ) -> TyResult<AnnotatedExpression> {
-        self.assert_expression_kind(left, self.get_static_kind_by_name("bool", left)?, left);
-        self.assert_expression_kind(right, self.get_static_kind_by_name("bool", right)?, right);
-
-        let left_kind = self.resolve_expr_type(left)?;
-
-        Ok(AnnotatedExpression::Logical(
-            Box::new(self.analyze_expr(left)?),
-            op.clone(),
-            Box::new(self.analyze_expr(right)?),
-            left_kind,
-        ))
-    }
-
-    /// Resolves a type composition from a mask of tokens.
-    ///
-    /// This function builds a set of archetypes from the given tokens and attempts to find a matching
-    /// `TypeDescriptor` that satisfies all the archetypes.
-    ///
-    /// # Parameters
-    /// - `mask`: A vector of `Token`s representing the names of types or modules.
-    ///
-    /// # Returns
-    /// - A `TypeDescriptor` representing the resolved type based on the mask.
-    ///
-    /// # Errors
-    /// - Raises an error if no matching type is found for the given archetypes.
-    fn resolve_type_composition(
-        &mut self,
-        mask: &Vec<Token>,
-    ) -> TyResult<Rc<RefCell<TypeDescriptor>>> {
-        let mut archetypes = HashSet::<Archetype>::new();
-
-        if mask[0].lexeme == "void" {
-            return Ok(self.get_void_instance());
-        }
-
-        archetypes.insert(Archetype::new("object".to_string()));
-
-        for name in mask {
-            let matched: Vec<Archetype> = self
-                .get_static_kind_by_name(
-                    &name.lexeme,
-                    &Expression::Literal(name.clone(), name.span),
-                )?
-                .borrow()
-                .archetypes
-                .clone()
-                .into_iter()
-                .collect();
-
-            for archetype in matched {
-                archetypes.insert(archetype.clone());
-            }
-        }
-
-        let archetypes: Vec<Archetype> = archetypes.into_iter().collect();
-
-        match self.get_by_archetype(&archetypes) {
-            None => gpp_error!("Cannot find type to match with specified archetype."),
-            Some(kind) => Ok(kind),
-        }
-    }
-
-    /// Analyzes a return statement and ensures that the return type matches the function signature.
-    ///
-    /// This function checks if the return statement is within a function context and validates that
-    /// the type of the returned expression matches the function's return type.
-    ///
-    /// # Parameters
-    /// - `value`: The expression being returned.
-    ///
-    /// # Returns
-    /// - An `AnnotatedStatement` representing the return statement, with the annotated return value.
-    ///
-    /// # Errors
-    /// - Raises an error if the return statement is outside a function or if the return type does not match the function's signature.
-    fn analyze_return(
-        &mut self,
-        keyword: &Token,
-        value: &Option<Expression>,
-    ) -> TyResult<AnnotatedStatement> {
-        self.require_depth(
-            Ordering::Greater,
-            0,
-            "Return statement are only allowed inside functions.".to_string(),
-        );
-
-        if self.current_symbol_kind != SymbolKind::Function
-            && self.current_symbol_kind != SymbolKind::InternalDefinition
-        {
-            return Err(CompilationError::with_span(
-                CompilationErrorKind::InvalidStatementUsage {
-                    error: "Returns is only allowed inside functions or internal definitions."
-                        .into(),
-                },
-                Some(keyword.line),
-                keyword.span,
-            ));
-        }
-
-        if let SymbolKind::Function = self.current_symbol_kind {
-            let function = self.current_symbol.clone();
-            let function_signature = self.get_function(&function).unwrap().clone();
-
-            match value {
-                Some(v) => {
-                    let annotated_value = self.analyze_expr(v)?;
-
-                    self.assert_archetype_kind(
-                        v,
-                        function_signature.return_kind.clone(),
-                        format!(
-                            "Return of '{}' does not match with function signature.",
-                            function.clone()
-                        )
-                        .as_str(),
-                    )?;
-
-                    Ok(AnnotatedStatement::Return(Some(annotated_value)))
-                }
-                None => {
-                    if function_signature.return_kind.borrow().name != "void" {
-                        return Err(CompilationError::with_span(
-                            CompilationErrorKind::ExpectReturnType {
-                                expect: function.clone(),
-                                found: function_signature.return_kind.borrow().name.clone(),
-                            },
-                            Some(keyword.line),
-                            keyword.span,
-                        ));
-                    }
-
-                    return Ok(AnnotatedStatement::Return(None));
-                }
-            }
-        } else {
-            if let SymbolKind::InternalDefinition = self.current_symbol_kind {
-                let id = self.current_return_kind_id.unwrap();
-                let expected_return = self.get_static_kind_by_id(id);
-
-                match value {
-                    None => {
-                        if let Ordering::Equal =
-                            expected_return.borrow().name.cmp(&"void".to_string())
-                        {
-                            Ok(AnnotatedStatement::Return(None))
-                        } else {
-                            Err(CompilationError::with_span(
-                                CompilationErrorKind::UnexpectedReturnValue {
-                                    found: self.get_static_kind_by_id(id).borrow().name.clone(),
-                                },
-                                Some(keyword.line),
-                                keyword.span,
-                            ))
-                        }
-                    }
-                    Some(v) => {
-                        let return_kind = self.resolve_expr_type(v)?;
-
-                        if return_kind.borrow().id != expected_return.borrow().id {
-                            return Err(CompilationError::with_span(
-                                CompilationErrorKind::ExpectReturnType {
-                                    expect: expected_return.borrow().name.clone(),
-                                    found: return_kind.borrow().name.clone(),
-                                },
-                                Some(v.line()),
-                                v.span(),
-                            ));
-                        } else {
-                            Ok(AnnotatedStatement::Return(Some(self.analyze_expr(v)?)))
-                        }
-                    }
-                }
-            } else {
-                gpp_error!("return statement are only allowed inside functions or definitions.");
-            }
         }
     }
 
@@ -2568,7 +992,7 @@ impl SemanticAnalyzer {
     ///
     /// # Errors
     /// - Raises an error if the archetypes of the `source` and `target` types do not match.
-    fn assert_kind_equals(
+    pub(super) fn assert_kind_equals(
         &self,
         source: Rc<RefCell<TypeDescriptor>>,
         target: Rc<RefCell<TypeDescriptor>>,
@@ -2588,184 +1012,6 @@ impl SemanticAnalyzer {
         Ok(())
     }
 
-    /// Resolves the type of an expression with field access (e.g., `obj.field`).
-    ///
-    /// This function resolves the type of an expression with one or more field accesses, ensuring that
-    /// each field in the path exists and is valid for the type.
-    ///
-    /// # Parameters
-    /// - `expression`: The expression representing the object whose fields are being accessed.
-    /// - `token`: The token representing the field being accessed.
-    ///
-    /// # Returns
-    /// - A `TypeDescriptor` representing the type of the accessed field.
-    ///
-    /// # Errors
-    /// - Raises an error if any field in the expression path does not exist or if the type is invalid.
-    fn resolve_get_expr(
-        &mut self,
-        expression: &Expression,
-        token: &Token,
-    ) -> TyResult<Rc<RefCell<TypeDescriptor>>> {
-        let mut current_kind: Option<Rc<RefCell<TypeDescriptor>>> = None;
-        let mut current_expression = expression;
-        let mut is_literal = false;
-
-        let mut path = vec![token.clone()];
-
-        while let Expression::Get(expr, name, span) = current_expression {
-            path.push(name.clone());
-            current_expression = expr;
-        }
-
-        if let Expression::Variable(name, span) = current_expression {
-            path.push(name.clone());
-        } else {
-            current_kind = Some(Rc::clone(&self.resolve_expr_type(&current_expression)?));
-            is_literal = true;
-        }
-
-        let path: Vec<&Token> = path.iter().rev().collect();
-
-        if is_literal {
-            for (index, field) in path[0..].iter().enumerate() {
-                current_kind = match current_kind.clone() {
-                    None => {
-                        gpp_error!(
-                            "{} cannot have '{}' field.",
-                            path[index - 1],
-                            field.lexeme.clone()
-                        );
-                    }
-
-                    Some(type_descriptor) => {
-                        match type_descriptor.borrow().fields.get(&field.lexeme) {
-                            None => match type_descriptor.borrow().methods.get(&field.lexeme) {
-                                Some(method_decl) => {
-                                    return Ok(self
-                                        .get_static_kind_by_id(method_decl.return_kind_id)
-                                        .clone());
-                                }
-                                None => {
-                                    gpp_error!(
-                                        "Variable '{}' is a '{}' instance and not have '{}' field.",
-                                        path[index].lexeme.clone(),
-                                        current_kind.unwrap().borrow().name,
-                                        field.lexeme.clone()
-                                    );
-                                }
-                            },
-                            Some(field_decl) => Some(field_decl.kind.clone()),
-                        }
-                    }
-                };
-            }
-        } else {
-            current_kind = match self.get_name_in_depth(&path[0])? {
-                None => {
-                    gpp_error!("The kind of {} is not known here.", &path[0].lexeme);
-                }
-                Some(semantic_value) => semantic_value.kind,
-            };
-
-            for (index, field) in path[1..].iter().enumerate() {
-                current_kind = match &current_kind {
-                    None => {
-                        gpp_error!(
-                            "{} cannot have '{}' field.",
-                            path[index - 1],
-                            field.lexeme.clone()
-                        );
-                    }
-
-                    Some(type_descriptor) => {
-                        match type_descriptor.borrow().fields.get(&field.lexeme) {
-                            Some(field_decl) => Some(field_decl.kind.clone()),
-                            None => match type_descriptor.borrow().methods.get(&field.lexeme) {
-                                Some(method_decl) => Some(
-                                    self.get_static_kind_by_id(method_decl.return_kind_id)
-                                        .clone(),
-                                ),
-                                None => {
-                                    gpp_error!(
-                                        "Variable '{}' is a '{}' instance and not have '{}' field.",
-                                        path[index].lexeme.clone(),
-                                        current_kind.clone().unwrap().borrow().name,
-                                        field.lexeme.clone()
-                                    );
-                                }
-                            },
-                        }
-                    }
-                };
-            }
-        }
-
-        match &current_kind {
-            None => gpp_error!("Not have field with name."),
-            Some(kind) => Ok(self.get_static_kind_by_name(&kind.borrow().name, expression)?),
-        }
-    }
-
-    /// Analyzes an expression involving field or member access (e.g., `obj.field`).
-    ///
-    /// This function first analyzes the base expression and then constructs an `AnnotatedExpression`
-    /// for the field access. It resolves the type of the field access expression as well.
-    ///
-    /// # Parameters
-    /// - `expression`: The expression that represents the base object.
-    /// - `token`: The token representing the field being accessed.
-    ///
-    /// # Returns
-    /// - An `AnnotatedExpression::Get` that represents the field access expression, including the
-    ///   base expression, the field's token, and the resolved type of the field.
-    ///
-    /// # Example
-    /// ```rust
-    /// let expr = analyze_get_expr(&expression, token);
-    /// ```
-    fn analyze_get_expr(
-        &mut self,
-        expression: &Expression,
-        token: Token,
-    ) -> TyResult<AnnotatedExpression> {
-        match expression {
-            Expression::Get(_, _, span) => Ok(AnnotatedExpression::Get(
-                Box::new(self.analyze_expr(expression)?),
-                token.clone(),
-                self.resolve_expr_type(expression)?,
-            )),
-
-            Expression::Variable(name, span) => Ok(AnnotatedExpression::Get(
-                Box::new(self.analyze_expr(expression)?),
-                token.clone(),
-                self.resolve_expr_type(expression)?,
-            )),
-
-            Expression::Call(callee, paren, args, span) => {
-                let kind = self.resolve_expr_type(callee)?;
-
-                if kind.borrow().fields.contains_key(&token.lexeme) {
-                    return Ok(AnnotatedExpression::Get(
-                        Box::new(self.analyze_expr(expression)?),
-                        token.clone(),
-                        self.resolve_expr_type(expression)?,
-                    ));
-                } else {
-                    gpp_error!(
-                        "Type '{}' has no property named '{}'.",
-                        kind.borrow().name,
-                        token.lexeme
-                    );
-                }
-            }
-
-            _ => {
-                panic!("Unsupported get expression: {:?}", expression);
-            }
-        }
-    }
-
     /// Retrieves the type descriptor of a user-defined symbol.
     ///
     /// This function looks up a symbol's name in the symbol table and retrieves the `TypeDescriptor`
@@ -2779,7 +1025,7 @@ impl SemanticAnalyzer {
     ///
     /// # Errors
     /// - Panics if the symbol is not found in the symbol table.
-    fn get_user_defined_kind(&self, name: String) -> Rc<RefCell<TypeDescriptor>> {
+    pub(super) fn get_user_defined_kind(&self, name: String) -> Rc<RefCell<TypeDescriptor>> {
         self.symbol_table.names.get(&name).unwrap().kind.clone()
     }
 
@@ -2793,38 +1039,8 @@ impl SemanticAnalyzer {
     ///
     /// # Returns
     /// - `true` if the symbol exists, `false` otherwise.
-    fn check_type_exists(&self, name: &String) -> bool {
+    pub(super) fn check_type_exists(&self, name: &String) -> bool {
         self.symbol_table.names.contains_key(name)
-    }
-
-    /// Resolves the type of a literal value.
-    ///
-    /// This function takes a literal token and determines its type (e.g., `int`, `float`, `bool`, `str`).
-    /// It retrieves the appropriate `TypeDescriptor` for the literal's type from the symbol table.
-    ///
-    /// # Parameters
-    /// - `literal`: The token representing the literal value.
-    ///
-    /// # Returns
-    /// - The `TypeDescriptor` corresponding to the literal's type.
-    ///
-    /// # Errors
-    /// - Raises an error if the token does not represent a valid literal.
-    fn resolve_literal_kind(&self, literal: &Token) -> TyResult<Rc<RefCell<TypeDescriptor>>> {
-        if let TokenKind::Literal(l) = literal.kind {
-            match l {
-                Literal::Boolean => Ok(self.symbol_table.get("bool").unwrap().kind.clone()),
-                Literal::Float => Ok(self.symbol_table.get("float").unwrap().kind.clone()),
-                Literal::Int => Ok(self.symbol_table.get("int").unwrap().kind.clone()),
-                Literal::String => Ok(self.symbol_table.get("str").unwrap().kind.clone()),
-            }
-        } else {
-            return Err(CompilationError::with_span(
-                CompilationErrorKind::InvalidLiteral { line: literal.line },
-                Some(literal.line),
-                literal.span,
-            ));
-        }
     }
 
     /// Retrieves a native function's prototype by its name.
@@ -2843,575 +1059,15 @@ impl SemanticAnalyzer {
     /// ```rust
     /// let native_fn = get_native_function("print");
     /// ```
-    fn get_native_function(&self, name: &str) -> Option<&FunctionPrototype> {
+    pub(crate) fn get_native_function(&self, name: &str) -> Option<&FunctionPrototype> {
         self.symbol_table.native_functions.get(name)
     }
 
-    fn analyze_while_stmt(
-        &mut self,
-        condition: &Expression,
-        body: &Statement,
-    ) -> TyResult<AnnotatedStatement> {
-        let annotated_condition = self.analyze_expr(condition)?;
-
-        let kind = self.resolve_expr_type(condition)?;
-
-        if !kind
-            .borrow()
-            .implements_archetype(&Archetype::new("bool".to_string()))
-        {
-            return Err(CompilationError::with_span(
-                CompilationErrorKind::ExpectType {
-                    expect: "bool".into(),
-                    found: kind.borrow().name.clone(),
-                    compiler_msg: None,
-                },
-                Some(condition.line()),
-                condition.span(),
-            ));
-        }
-
-        let mut annotated_body: Vec<Box<AnnotatedStatement>> = Vec::new();
-
-        match body {
-            Statement::Scope(statements) => {
-                for stmt in statements {
-                    for s in self.analyze_stmt(stmt)? {
-                        annotated_body.push(Box::new(s));
-                    }
-                }
-            }
-
-            _ => {
-                return Err(CompilationError::with_span(
-                    CompilationErrorKind::UsageOfNotRequiredStatement {
-                        statement: "scopes".into(),
-                        place: "while".into(),
-                    },
-                    Some(condition.line()),
-                    condition.span(),
-                ));
-            }
-        }
-
-        Ok(AnnotatedStatement::While(
-            annotated_condition,
-            Box::new(AnnotatedStatement::Scope(annotated_body)),
-        ))
-    }
-
-    fn analyze_postfix_expr(
-        &mut self,
-        operator: &Token,
-        variable: &Expression,
-    ) -> TyResult<AnnotatedExpression> {
-        if let Expression::Variable(name, span) = variable {
-            let kind = self.resolve_identifier_type(name)?;
-
-            if !kind
-                .borrow()
-                .implements_archetype(&Archetype::new("int".to_string()))
-            {
-                return Err(CompilationError::with_span(
-                    CompilationErrorKind::InvalidPostfixOperatorUsage {
-                        msg: "Only 'int' instances can use postfix operators.".into(),
-                    },
-                    Some(operator.line),
-                    operator.span.merge(variable.span()),
-                ));
-            }
-
-            Ok(AnnotatedExpression::PostFix(
-                operator.clone(),
-                Box::new(self.analyze_expr(variable)?),
-            ))
-        } else {
-            return Err(CompilationError::with_span(
-                CompilationErrorKind::InvalidPostfixOperatorUsage {
-                    msg: "Only variables can use postfix operators.".into(),
-                },
-                Some(operator.line),
-                operator.span.merge(variable.span()),
-            ));
-        }
-    }
-
-    fn analyze_set_expr(
-        &mut self,
-        target: Rc<Expression>,
-        name: Token,
-        value: Rc<Expression>,
-    ) -> TyResult<AnnotatedExpression> {
-        let annotated_target = self.analyze_expr(&target)?;
-        let annotated_value = self.analyze_expr(&value)?;
-        let target_kind = self.resolve_expr_type(&target)?;
-        let value_kind = self.resolve_expr_type(&value)?;
-
-        // self.assert_kind_equals(
-        //     value_kind,
-        //     target_kind,
-        //     "Cannot assign instance field with different kind.".to_string()
-        // );
-
-        Ok(AnnotatedExpression::Set(
-            Box::new(annotated_target),
-            name,
-            Box::new(annotated_value),
-            target_kind,
-        ))
-    }
-
-    fn analyze_list_get_expr(
-        &mut self,
-        expression: Box<Expression>,
-        index: Box<Expression>,
-    ) -> TyResult<AnnotatedExpression> {
-        let annotated_expression = self.analyze_expr(&expression)?;
-        let annotated_index = self.analyze_expr(&index)?;
-
-        Ok(AnnotatedExpression::ListGet(
-            Box::new(annotated_expression),
-            Box::new(annotated_index),
-        ))
-    }
-
-    fn resolve_list_get_type(
-        &mut self,
-        list: &Expression,
-        index: &Expression,
-    ) -> TyResult<Rc<RefCell<TypeDescriptor>>> {
-        match list {
-            Expression::List(elements, span) => self.resolve_list_type(elements),
-            Expression::Variable(name, span) => self.resolve_identifier_type(name),
-            _ => gpp_error!("Cannot resolve list type for {}.", list),
-        }
-    }
-
-    fn analyze_native_function(
-        &mut self,
-        name: &Token,
-        params: &Vec<FieldDeclaration>,
-        return_kind: &Expression,
-    ) -> TyResult<AnnotatedStatement> {
-        self.require_depth(
-            Ordering::Less,
-            1,
-            format!(
-                "Functions are only allowed in top level code. At line {}.",
-                name.line
-            ),
-        )?;
-
-        if let Some(f) = self.get_native_function(&name.lexeme) {
-            return Err(CompilationError::with_span(
-                CompilationErrorKind::DuplicatedNativeFunction {
-                    name: name.lexeme.clone(),
-                },
-                Some(name.line),
-                name.span,
-            ));
-        }
-
-        self.current_symbol_kind = SymbolKind::Function;
-
-        let mut kind: Rc<RefCell<TypeDescriptor>>;
-
-        if let Expression::TypeComposition(mask, span) = return_kind {
-            kind = self.resolve_type_composition(mask)?;
-        } else {
-            kind = self.get_static_kind_by_name("void", return_kind)?;
-
-            return Err(CompilationError::new(
-                CompilationErrorKind::MissingConstruction {
-                    construction: "function return kind".into(),
-                },
-                Some(name.line),
-            ));
-        }
-
-        let function_definition = FunctionPrototype::new(
-            name.lexeme.clone(),
-            params.clone(),
-            params.len(),
-            kind.clone(),
-        );
-
-        self.define_native_function(name.lexeme.clone(), function_definition.clone());
-
-        self.current_symbol = name.lexeme.clone();
-
-        Ok(AnnotatedStatement::NativeFunction(function_definition))
-    }
-
-    fn define_native_function(&mut self, name: String, value: FunctionPrototype) {
+    pub(super) fn define_native_function(&mut self, name: String, value: FunctionPrototype) {
         self.symbol_table.native_functions.insert(name, value);
     }
 
-    fn analyze_attribute(
-        &mut self,
-        token: Token,
-        expressions: Vec<Rc<Expression>>,
-    ) -> TyResult<AnnotatedExpression> {
-        let attrib = &self.symbol_table.get_attribute(token.lexeme.clone());
-
-        match attrib {
-            Some(att) => {
-                if att.args.len() != expressions.len() {
-                    gpp_error!(
-                        "Expect {} args, but got {}.",
-                        att.args.len(),
-                        expressions.len()
-                    );
-                }
-
-                let mut index = 0usize;
-
-                for kind in &att.args.clone() {
-                    let expr = expressions[index].clone();
-                    index += 1;
-                    let expr_kind = self.resolve_expr_type(&expr)?;
-
-                    if kind.borrow().id != expr_kind.borrow().id {
-                        return Err(CompilationError::with_span(
-                            CompilationErrorKind::ExpectType {
-                                expect: kind.borrow().name.clone(),
-                                found: expr_kind.borrow().name.clone(),
-                                compiler_msg: None,
-                            },
-                            Some(expr.line()),
-                            expr.span(),
-                        ));
-                    }
-                }
-            }
-            None => {
-                gpp_error!("Attribute '{}' not found.", token.lexeme);
-            }
-        }
-
-        Ok(AnnotatedExpression::Void)
-    }
-
-    fn analyze_builtin_attribute(
-        &mut self,
-        name: &Token,
-        kinds: &Vec<Token>,
-    ) -> TyResult<AnnotatedStatement> {
-        let att_name = name.lexeme.clone();
-        let mut att_kinds: Vec<Rc<RefCell<TypeDescriptor>>> = Vec::new();
-
-        for kind in kinds {
-            if !self.check_type_exists(&kind.lexeme) {
-                return Err(CompilationError::with_span(
-                    CompilationErrorKind::NotFoundType {
-                        name: kind.lexeme.clone(),
-                    },
-                    Some(kind.line),
-                    kind.span,
-                ));
-            }
-
-            let att_kind = self.get_static_kind_by_name(
-                &kind.lexeme,
-                &Expression::Literal(kind.clone(), kind.span),
-            )?;
-            att_kinds.push(att_kind);
-        }
-
-        self.symbol_table
-            .define_attribute(att_name, att_kinds.clone());
-
-        Ok(AnnotatedStatement::BuiltinAttribute(
-            name.clone(),
-            att_kinds,
-        ))
-    }
-
-    fn analyze_internal_definition(
-        &mut self,
-        name: &Token,
-        params: &Vec<FieldDeclaration>,
-        body: &Statement,
-        return_kind: &Expression,
-    ) -> TyResult<AnnotatedStatement> {
-        self.require_depth(
-            Ordering::Less,
-            1,
-            format!(
-                "Definitions are only allowed in top level code. At line {}.",
-                name.line
-            ),
-        )?;
-
-        self.current_return_kind_id = Some(self.resolve_expr_type(return_kind)?.borrow().id);
-        self.current_symbol_kind = SymbolKind::InternalDefinition;
-
-        let kind: Rc<RefCell<TypeDescriptor>> =
-            if let Expression::TypeComposition(mask, span) = return_kind {
-                self.resolve_type_composition(mask)?
-            } else {
-                let void_kind = self.get_static_kind_by_name("void", return_kind)?;
-                return Err(CompilationError::new(
-                    CompilationErrorKind::MissingConstruction {
-                        construction: "function return kind".into(),
-                    },
-                    Some(name.line),
-                ));
-                void_kind
-            };
-
-        let target = self.resolve_expr_type(&params[0].kind)?;
-        let target_name = target.borrow().name.clone();
-        let target_id = target.borrow().id;
-        self.current_descriptor_id = Some(target_id);
-
-        let mut method_params: Vec<MethodParameter> = Vec::new();
-        for field_decl in params {
-            let param_kind = self.resolve_expr_type(&field_decl.kind)?;
-            method_params.push(MethodParameter::new(
-                field_decl.name.lexeme.clone(),
-                param_kind,
-            ));
-        }
-
-        self.current_symbol = name.lexeme.clone();
-
-        self.begin_scope();
-        for arg in params {
-            let kind = self.resolve_expr_type(&arg.kind)?;
-            self.define_local(
-                &arg.name.lexeme,
-                SemanticValue::new(Some(kind), ValueWrapper::Internal, arg.name.line),
-            );
-        }
-
-        let mut annotated_body = Vec::new();
-        match body {
-            Statement::Scope(stmts) => {
-                for stmt in stmts {
-                    for s in self.analyze_stmt(stmt)? {
-                        annotated_body.push(Box::new(s));
-                    }
-                }
-            }
-            _ => gpp_error!("Statement {:?} is not allowed here.", body),
-        }
-        self.end_scope();
-
-        let arity = method_params.len();
-        let return_kind_type = self.resolve_expr_type(return_kind)?;
-        let return_kind_id = return_kind_type.borrow().id;
-
-        self.add_method_to_defined_type(
-            name.lexeme.clone(),
-            &target_name,
-            method_params,
-            arity,
-            target_id,
-            return_kind_id,
-            false,
-        );
-
-        let function_definition = FunctionPrototype::new(
-            name.lexeme.clone(),
-            params.clone(),
-            params.len(),
-            return_kind_type,
-        );
-
-        Ok(AnnotatedStatement::InternalDefinition(
-            target,
-            function_definition,
-            Box::new(AnnotatedStatement::Scope(annotated_body)),
-        ))
-    }
-
-    fn analyze_method_get(
-        &mut self,
-        callee: &Expression,
-        token: Token,
-    ) -> TyResult<MethodDescriptor> {
-        let callee_kind = self.resolve_expr_type(callee)?;
-
-        if callee_kind.borrow().methods.contains_key(&token.lexeme) {
-            return Ok(callee_kind.borrow().methods[&token.lexeme].clone());
-        }
-
-        gpp_error!(
-            "'{}' instance has no method named '{}'.",
-            callee_kind.borrow().name,
-            token.lexeme
-        );
-    }
-
-    fn analyze_destructure_pattern(
-        &mut self,
-        fields: &Vec<Token>,
-        value: &Expression,
-    ) -> TyResult<TyStmts> {
-        let value_kind = self.resolve_expr_type(value)?;
-        let mut declarations: TyStmts = Vec::new();
-
-        for field in fields {
-            if value_kind.borrow().fields.contains_key(&field.lexeme) {
-                let field_kind = value_kind.borrow().fields[&field.lexeme].kind.clone();
-                if self.context().contains_name(&field.lexeme) {
-                    return Err(CompilationError::with_span(
-                        CompilationErrorKind::DuplicatedVariable {
-                            name: field.lexeme.clone(),
-                            previous: self.context().name(&field.lexeme).unwrap().line,
-                        },
-                        Some(field.line),
-                        field.span,
-                    ));
-                }
-
-                self.define_local(
-                    &field.lexeme,
-                    SemanticValue::new(Some(field_kind), ValueWrapper::Internal, field.line),
-                );
-
-                let get_kind = self.resolve_expr_type(&Expression::Get(
-                    Rc::new(value.clone()),
-                    field.clone(),
-                    field.span,
-                ));
-
-                let field_get = AnnotatedExpression::Get(
-                    Box::new(self.analyze_expr(value)?),
-                    field.clone(),
-                    value_kind.clone(),
-                );
-
-                declarations.push(AnnotatedStatement::Variable(field.clone(), Some(field_get)));
-            } else {
-                return Err(CompilationError::with_span(
-                    CompilationErrorKind::NotFoundField {
-                        field: field.lexeme.clone(),
-                        r#type: value_kind.borrow().name.clone(),
-                    },
-                    Some(field.line),
-                    field.span,
-                ));
-            }
-        }
-
-        Ok(declarations)
-    }
-
-    fn analyze_list_set_expr(
-        &mut self,
-        list: Box<Expression>,
-        index: Box<Expression>,
-        value: Rc<Expression>,
-    ) -> TyResult<AnnotatedExpression> {
-        let annotated_list = self.analyze_expr(&list)?;
-        let annotated_index = self.analyze_expr(&index)?;
-        let annotated_value = self.analyze_expr(&value)?;
-        let kind = self.resolve_expr_type(&list)?;
-
-        Ok(AnnotatedExpression::ListSet(
-            Box::new(annotated_list),
-            Box::new(annotated_index),
-            Box::new(annotated_value),
-            kind,
-        ))
-    }
-
-    fn analyze_scope(&mut self, stmts: &Vec<Rc<Statement>>) -> TyResult<TyStmts> {
-        let mut annotated_stmts: TyStmts = Vec::new();
-
-        self.begin_scope();
-
-        for stmt in stmts {
-            let mut annotated_stmt = self.analyze_stmt(stmt)?;
-            annotated_stmts.append(&mut annotated_stmt);
-        }
-
-        self.end_scope();
-
-        Ok(annotated_stmts)
-    }
-
-    fn analyze_import(&mut self, module: &Vec<Token>) -> TyResult<TyStmts> {
-        let mut relative_path = PathBuf::new();
-        for token in module {
-            relative_path.push(&token.lexeme);
-        }
-        relative_path.set_extension("gpp");
-
-        let full_path = match self.resolve_module_path(&relative_path) {
-            Some(path) => path,
-            None => {
-                return Err(CompilationError::with_span(
-                    CompilationErrorKind::ModuleNotFound {
-                        path: module.iter().map(|t| t.lexeme.clone()).collect(),
-                    },
-                    Some(module.last().unwrap().line),
-                    module.last().unwrap().span,
-                ));
-            }
-        };
-
-        if let Ok(canonical_path) = full_path.canonicalize() {
-            if self
-                .modules
-                .contains(&canonical_path.to_str().unwrap().clone().into())
-            {
-                return Ok(vec![]);
-            }
-            self.modules.push(canonical_path.to_str().unwrap().into());
-        } else {
-            return Err(CompilationError::with_span(
-                CompilationErrorKind::ModuleAccessDenied {
-                    path: module.iter().map(|t| t.lexeme.clone()).collect(),
-                    full_path: full_path.display().to_string(),
-                },
-                Some(module.last().unwrap().line),
-                module.last().unwrap().span,
-            ));
-        }
-
-        let source = match read_file_without_bom(full_path.to_str().unwrap()) {
-            Ok(s) => s,
-            Err(e) => {
-                return Err(CompilationError::with_span(
-                    CompilationErrorKind::ModuleReadError {
-                        path: module.iter().map(|t| t.lexeme.clone()).collect(),
-                        error: "Error to read module".into(),
-                        full_path: full_path.display().to_string(),
-                    },
-                    Some(module.last().unwrap().line),
-                    module.last().unwrap().span,
-                ));
-            }
-        };
-
-        if self.config.verbose {
-            println!("Importing: {}", full_path.display());
-        }
-
-        let mut import_pipeline = ModuleImportPipeline::get();
-        let ast = import_pipeline
-            .execute(
-                source.content.clone(),
-                &self.config.clone(),
-                Rc::clone(&self.reporter),
-            )
-            .unwrap()
-            .downcast::<Ast>()
-            .unwrap();
-
-        let mut imported_annotated_stmts = Vec::new();
-
-        for stmt in ast.statements {
-            imported_annotated_stmts.append(&mut self.analyze_stmt(&stmt)?);
-        }
-
-        Ok(imported_annotated_stmts)
-    }
-
-    fn resolve_module_path(&self, relative_path: &PathBuf) -> Option<PathBuf> {
+    pub(super) fn resolve_module_path(&self, relative_path: &PathBuf) -> Option<PathBuf> {
         if let stdlib_root = &self.config.stdlib_path {
             let potential_path = stdlib_root.join(relative_path);
             if potential_path.exists() {

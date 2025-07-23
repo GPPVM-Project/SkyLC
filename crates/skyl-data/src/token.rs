@@ -1,5 +1,7 @@
 use std::fmt::{self, Display};
 
+use crate::CoersionKind;
+
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 #[allow(dead_code)]
 pub enum TokenKind {
@@ -36,6 +38,34 @@ pub enum OperatorKind {
     Arrow,
     PostFixIncrement,
     PostFixDecrement,
+}
+
+impl Into<CoersionKind> for OperatorKind {
+    fn into(self) -> CoersionKind {
+        match self {
+            OperatorKind::Plus => CoersionKind::Add,
+            OperatorKind::Minus => CoersionKind::Sub,
+            OperatorKind::Star => CoersionKind::Mul,
+            OperatorKind::Slash => CoersionKind::Div,
+            OperatorKind::EqualEqual => todo!(),
+            OperatorKind::Less => todo!(),
+            OperatorKind::Greater => todo!(),
+            OperatorKind::NotEqual => todo!(),
+            OperatorKind::And => todo!(),
+            OperatorKind::BitwiseAnd => todo!(),
+            OperatorKind::Or => todo!(),
+            OperatorKind::BitwiseOr => todo!(),
+            OperatorKind::DoubleStarEqual => todo!(),
+            OperatorKind::DoubleStar => todo!(),
+            OperatorKind::GreaterEqual => todo!(),
+            OperatorKind::LessEqual => todo!(),
+            OperatorKind::Equal => todo!(),
+            OperatorKind::Not => todo!(),
+            OperatorKind::Arrow => todo!(),
+            OperatorKind::PostFixIncrement => todo!(),
+            OperatorKind::PostFixDecrement => todo!(),
+        }
+    }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]

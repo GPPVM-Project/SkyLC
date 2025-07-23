@@ -48,6 +48,14 @@ impl ValueWrapper {
         }
     }
 
+    pub fn as_string(&self) -> Option<String> {
+        if let ValueWrapper::String(s) = self {
+            Some(s.clone())
+        } else {
+            None
+        }
+    }
+
     pub fn as_float(&self) -> Option<f32> {
         if let ValueWrapper::Float(v) = self {
             Some(*v)
@@ -224,12 +232,28 @@ impl BuiltinAttribute {
     }
 }
 
+#[derive(Copy, Hash, Debug, Clone, PartialEq, Eq)]
+pub enum CoersionKind {
+    Add,
+    Sub,
+    Mul,
+    Div,
+}
+
+#[derive(Hash, Clone, Debug, PartialEq, Eq)]
+pub struct Operator {
+    pub this: u32,
+    pub other: u32,
+    pub kind: CoersionKind,
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct SymbolTable {
     pub names: HashMap<String, StaticValue>,
     pub functions: HashMap<String, FunctionPrototype>,
     pub native_functions: HashMap<String, FunctionPrototype>,
     pub attributes: HashMap<String, BuiltinAttribute>,
+    pub operators: HashMap<Operator, String>,
 }
 
 impl SymbolTable {
@@ -239,6 +263,7 @@ impl SymbolTable {
             functions: HashMap::new(),
             native_functions: HashMap::new(),
             attributes: HashMap::new(),
+            operators: HashMap::new(),
         }
     }
 

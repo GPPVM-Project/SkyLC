@@ -56,6 +56,11 @@ pub enum CompilationErrorKind {
     DuplicatedField {
         field: String,
     },
+    DuplicatedDefinition {
+        kind: String,
+        definition: String,
+        target: String,
+    },
     MissingConstruction {
         construction: String,
     },
@@ -98,6 +103,11 @@ pub enum CompilationErrorKind {
         field: String,
     },
 
+    SymbolNotFound {
+        symbol_kind: String,
+        symbol_name: String,
+    },
+
     ModuleNotFound {
         path: Vec<String>,
     },
@@ -125,6 +135,9 @@ pub enum CompilationErrorKind {
     InvalidExpression {
         msg: String,
     },
+    InvalidAttributeExpression {
+        msg: String,
+    },
     InexistentType {
         r#type: String,
     },
@@ -134,6 +147,17 @@ pub enum CompilationErrorKind {
     },
     UsageOfUndeclaredVariable {
         name: String,
+    },
+    InvalidOperatorOverload(String),
+    MismatchAttrbuteArgument {
+        arg: String,
+        accepted: Vec<String>,
+    },
+    InvalidConstantEvaluation(&'static str),
+    OperatorOverloadNotFound {
+        this: String,
+        other: String,
+        operator: String,
     },
 }
 

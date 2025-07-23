@@ -6,7 +6,8 @@ use std::{
 };
 
 use skyl_data::{
-    Ast, CompilerConfig, ContextStack, SemanticCode, SymbolKind, SymbolTable, TypeDescriptor,
+    Ast, CompilerConfig, ContextStack, Decorator, SemanticCode, SymbolKind, SymbolTable,
+    TypeDescriptor,
 };
 use skyl_driver::{
     PipelineStep,
@@ -31,6 +32,7 @@ impl Default for SemanticAnalyzer {
             current_symbol_kind: SymbolKind::None,
             reporter: Rc::new(RefCell::new(CompilerErrorReporter::empty())),
             void_instance: Rc::new(RefCell::new(TypeDescriptor::empty())),
+            current_decorator: Decorator::from(Vec::new()),
         };
 
         let archetypes = HashSet::new();
