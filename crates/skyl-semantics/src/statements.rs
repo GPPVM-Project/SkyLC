@@ -41,15 +41,12 @@ impl SemanticAnalyzer {
                 Ok(vec![self.analyze_decorator(hash_token, attribs)?])
             }
             Statement::Type(name, archetypes, fields) => {
-                Ok(vec![self.analyze_type(name, archetypes, fields)?])
+                let result = self.analyze_type(name, archetypes, fields);
+                Ok(vec![result?])
             }
             Statement::Function(name, params, body, return_kind) => {
-                Ok(vec![self.analyze_function(
-                    name,
-                    params,
-                    &body,
-                    return_kind,
-                )?])
+                let result = self.analyze_function(name, params, &body, return_kind);
+                Ok(vec![result?])
             }
             Statement::NativeFunction(name, params, return_kind) => {
                 Ok(vec![self.analyze_native_function(
@@ -79,12 +76,8 @@ impl SemanticAnalyzer {
                 Ok(vec![self.analyze_builtin_attribute(name, kinds)?])
             }
             Statement::InternalDefinition(name, params, body, return_kind) => {
-                Ok(vec![self.analyze_internal_definition(
-                    name,
-                    params,
-                    body,
-                    return_kind,
-                )?])
+                let result = self.analyze_internal_definition(name, params, body, return_kind);
+                Ok(vec![result?])
             }
             Statement::DestructurePattern(fields, value) => {
                 Ok(self.analyze_destructure_pattern(fields, value)?)
@@ -99,7 +92,17 @@ impl SemanticAnalyzer {
 
                 Ok(vec![AnnotatedStatement::Scope(boxed_statements)])
             }
-            Statement::Import(module) => self.analyze_import(module),
+            Statement::Import(module) => {
+                let result = self.analyze_import(module);
+
+                match result {
+                    Err(e) => {
+                        self.report_error(e);
+                        Ok(vec![])
+                    }
+                    Ok(s) => Ok(s),
+                }
+            }
             Statement::EndCode => Ok(vec![]),
             _ => gpp_error!("Statement {:?} not supported.", stmt),
         }
@@ -198,7 +201,7 @@ impl SemanticAnalyzer {
         if let Ok(canonical_path) = full_path.canonicalize() {
             if self
                 .modules
-                .contains(&canonical_path.to_str().unwrap().clone().into())
+                .contains(&canonical_path.to_str().unwrap().into())
             {
                 return Ok(vec![]);
             }
@@ -233,11 +236,17 @@ impl SemanticAnalyzer {
             println!("Importing: {}", full_path.display());
         }
 
+        if let Some(ctx) = &mut self.ctx {
+            ctx.borrow_mut()
+                .push_module(full_path.to_str().unwrap().into());
+        }
+
         let mut import_pipeline = ModuleImportPipeline::get();
         let ast = import_pipeline
             .execute(
                 source.content.clone(),
                 &self.config.clone(),
+                self.ctx.clone().unwrap(),
                 Rc::clone(&self.reporter),
             )
             .unwrap()
@@ -246,9 +255,32 @@ impl SemanticAnalyzer {
 
         let mut imported_annotated_stmts = Vec::new();
 
+        let old_stmts = self.statements.clone();
+        let old_index = self.current_stmt;
+
+        self.current_stmt = 0;
+        self.statements = ast.statements.clone();
+
         for stmt in ast.statements {
-            imported_annotated_stmts.append(&mut self.analyze_stmt(&stmt)?);
+            let mut s = match self.analyze_stmt(&stmt) {
+                Err(e) => {
+                    self.report_error(e);
+                    vec![]
+                }
+
+                Ok(s) => s,
+            };
+
+            imported_annotated_stmts.append(&mut s);
+            self.advance();
         }
+
+        if let Some(ctx) = &mut self.ctx {
+            ctx.borrow_mut().pop_module();
+        }
+
+        self.statements = old_stmts;
+        self.current_stmt = old_index;
 
         Ok(imported_annotated_stmts)
     }
@@ -273,18 +305,17 @@ impl SemanticAnalyzer {
         self.current_return_kind_id = Some(self.resolve_expr_type(return_kind)?.borrow().id);
         self.current_symbol_kind = SymbolKind::InternalDefinition;
 
-        let kind: Rc<RefCell<TypeDescriptor>> =
-            if let Expression::TypeComposition(mask, span) = return_kind {
-                self.resolve_type_composition(mask)?
-            } else {
-                let void_kind = self.get_static_kind_by_name("void", return_kind)?;
-                return Err(CompilationError::new(
-                    CompilationErrorKind::MissingConstruction {
-                        construction: "function return kind".into(),
-                    },
-                    Some(name.line),
-                ));
-            };
+        if let Expression::TypeComposition(mask, _) = return_kind {
+            self.resolve_type_composition(mask)?;
+        } else {
+            self.get_static_kind_by_name("void", return_kind)?;
+            return Err(CompilationError::new(
+                CompilationErrorKind::MissingConstruction {
+                    construction: "function return kind".into(),
+                },
+                Some(name.line),
+            ));
+        }
 
         let target = self.resolve_expr_type(&params[0].kind)?;
 
@@ -696,7 +727,7 @@ impl SemanticAnalyzer {
                         ));
                     }
 
-                    let mut context = &mut self.context();
+                    let context = &mut self.context();
                     context.declare_name(&name.lexeme, value);
                     Ok(AnnotatedStatement::Variable(
                         name.clone(),
@@ -705,7 +736,7 @@ impl SemanticAnalyzer {
                 }
                 None => {
                     let value = SemanticValue::new(None, ValueWrapper::Internal, name.line);
-                    let mut context = &mut self.context();
+                    let context = &mut self.context();
                     context.declare_name(&name.lexeme, value);
                     Ok(AnnotatedStatement::Variable(name.clone(), None))
                 }
@@ -875,8 +906,6 @@ impl SemanticAnalyzer {
 
         self.end_scope();
 
-        self.current_decorator = Decorator::from(Vec::new());
-
         Ok(AnnotatedStatement::Function(
             function_definition,
             Box::new(AnnotatedStatement::Scope(annotated_body)),
@@ -906,7 +935,7 @@ impl SemanticAnalyzer {
             keyword,
             0,
             "Return statement are only allowed inside functions.".to_string(),
-        );
+        )?;
 
         if self.current_symbol_kind != SymbolKind::Function
             && self.current_symbol_kind != SymbolKind::InternalDefinition
@@ -1137,27 +1166,34 @@ impl SemanticAnalyzer {
     ) -> TyResult<AnnotatedStatement> {
         let next = self.next();
 
+        let mut annotated_attributes = Vec::new();
+        let mut attribute_usages = Vec::new();
+
+        for attribute in attributes {
+            annotated_attributes.push(self.analyze_expr(attribute)?);
+
+            if let Expression::Attribute(name, args, span) = attribute {
+                attribute_usages.push(BuiltinAttributeUsage {
+                    args: args.iter().map(|e| Rc::clone(e)).collect(),
+                    name: name.lexeme.clone(),
+                    span: span.clone(),
+                });
+            } else {
+                unreachable!();
+            }
+        }
+
         match next {
             Statement::Function(_, _, _, _) => {
-                let mut annotated_attributes = Vec::new();
-                let mut attribute_usages = Vec::new();
-
-                for attribute in attributes {
-                    annotated_attributes.push(self.analyze_expr(attribute)?);
-
-                    if let Expression::Attribute(name, args, span) = attribute {
-                        attribute_usages.push(BuiltinAttributeUsage {
-                            args: args.iter().map(|e| Rc::clone(e)).collect(),
-                            name: name.lexeme.clone(),
-                            span: span.clone(),
-                        });
-                    } else {
-                        unreachable!();
-                    }
-                }
-
                 self.current_decorator = Decorator::new(attribute_usages);
+                return Ok(AnnotatedStatement::Decorator(
+                    hash_token.clone(),
+                    annotated_attributes,
+                ));
+            }
 
+            Statement::NativeFunction(name, args, return_kind) => {
+                self.current_decorator = Decorator::new(attribute_usages);
                 return Ok(AnnotatedStatement::Decorator(
                     hash_token.clone(),
                     annotated_attributes,
@@ -1165,37 +1201,19 @@ impl SemanticAnalyzer {
             }
 
             Statement::InternalDefinition(_, _, _, _) => {
-                let mut annotated_attributes = Vec::new();
-                let mut attribute_usages = Vec::new();
-
-                for attribute in attributes {
-                    annotated_attributes.push(self.analyze_expr(attribute)?);
-
-                    if let Expression::Attribute(name, args, span) = attribute {
-                        attribute_usages.push(BuiltinAttributeUsage {
-                            args: args.iter().map(|e| Rc::clone(e)).collect(),
-                            name: name.lexeme.clone(),
-                            span: span.clone(),
-                        });
-                    } else {
-                        unreachable!();
-                    }
-                }
-
                 self.current_decorator = Decorator::new(attribute_usages);
-
                 return Ok(AnnotatedStatement::Decorator(
                     hash_token.clone(),
                     annotated_attributes,
                 ));
             }
+
+            Statement::EndCode => Ok(AnnotatedStatement::EndCode),
+
             _ => {
                 return Err(CompilationError::with_span(
                     CompilationErrorKind::InvalidStatementUsage {
-                        error: format!(
-                            "Decorators are only accepted in function signatures. \x1b[33mAt line {}.\x1b[0m\n\x1b[36mHint:\x1b[0m Move \x1b[32m'#[...]'\x1b[0m to before \x1b[35m'def {}(...) {{...}}'\x1b[0m",
-                            hash_token.line, self.current_symbol
-                        ),
+                        error: format!("Decorators are only accepted in function signatures.",),
                     },
                     Some(hash_token.line),
                     hash_token.span,

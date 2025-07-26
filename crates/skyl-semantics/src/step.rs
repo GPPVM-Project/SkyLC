@@ -6,8 +6,8 @@ use std::{
 };
 
 use skyl_data::{
-    Ast, CompilerConfig, ContextStack, Decorator, SemanticCode, SymbolKind, SymbolTable,
-    TypeDescriptor,
+    Ast, CompilerConfig, CompilerContext, ContextStack, Decorator, SemanticCode, SymbolKind,
+    SymbolTable, TypeDescriptor,
 };
 use skyl_driver::{
     PipelineStep,
@@ -33,6 +33,7 @@ impl Default for SemanticAnalyzer {
             reporter: Rc::new(RefCell::new(CompilerErrorReporter::empty())),
             void_instance: Rc::new(RefCell::new(TypeDescriptor::empty())),
             current_decorator: Decorator::from(Vec::new()),
+            ctx: None,
         };
 
         let archetypes = HashSet::new();
@@ -56,8 +57,11 @@ impl PipelineStep for SemanticAnalyzer {
         &mut self,
         input: Box<dyn Any>,
         config: &CompilerConfig,
+        ctx: Rc<RefCell<CompilerContext>>,
         reporter: Rc<RefCell<CompilerErrorReporter>>,
     ) -> Result<Box<dyn Any>, PipelineError> {
+        self.ctx = Some(ctx);
+
         let ast = input
             .downcast::<Ast>()
             .map_err(|_| PipelineError::new("SemanticAnalyzer esperava Ast como input".into()))?;

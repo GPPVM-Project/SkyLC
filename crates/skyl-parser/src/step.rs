@@ -1,7 +1,7 @@
 use std::any::Any;
 use std::{cell::RefCell, rc::Rc};
 
-use skyl_data::{Ast, CompilerConfig, TokenStream};
+use skyl_data::{Ast, CompilerConfig, CompilerContext, TokenStream};
 use skyl_driver::{
     PipelineStep,
     errors::{self, CompilerErrorReporter, PipelineError},
@@ -23,6 +23,7 @@ impl PipelineStep for Parser {
         &mut self,
         input: Box<dyn Any>,
         _config: &CompilerConfig,
+        ctx: Rc<RefCell<CompilerContext>>,
         reporter: Rc<RefCell<CompilerErrorReporter>>,
     ) -> Result<Box<dyn Any>, PipelineError> {
         let tokens = input

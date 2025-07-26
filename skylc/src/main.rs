@@ -3,7 +3,7 @@ mod cli;
 use anyhow::{Context, Result};
 use clap::Parser;
 use skyl_codegen::BytecodeGenerator;
-use skyl_data::{read_file_without_bom, CompilerConfig, IntermediateCode};
+use skyl_data::{read_file_without_bom, CompilerConfig, CompilerContext, IntermediateCode};
 use skyl_ir::IRGenerator;
 use skyl_semantics::SemanticAnalyzer;
 use skyl_stdlib::StdLibrary;
@@ -40,9 +40,14 @@ fn compile(args: &CompileArgs) -> Result<()> {
         })?,
     );
 
-    let reporter = Rc::new(RefCell::new(CompilerErrorReporter::new(Rc::clone(
-        &source_code,
-    ))));
+    let ctx = Rc::new(RefCell::new(CompilerContext::new()));
+    ctx.borrow_mut()
+        .push_module(args.input_file.to_str().unwrap().to_string());
+
+    let reporter = Rc::new(RefCell::new(CompilerErrorReporter::new(
+        Rc::clone(&source_code),
+        Some(ctx.clone()),
+    )));
 
     let stdlib_path = find_stdlib_path();
 
@@ -62,7 +67,12 @@ fn compile(args: &CompileArgs) -> Result<()> {
         .add_stage(Box::new(SemanticAnalyzer::default()))
         .add_stage(Box::new(IRGenerator::default()));
 
-    let ir = match pipeline.execute(source_code.content.clone(), &config, Rc::clone(&reporter)) {
+    let ir = match pipeline.execute(
+        source_code.content.clone(),
+        &config,
+        ctx.clone(),
+        Rc::clone(&reporter),
+    ) {
         Err(e) => gpp_error!("{}", e.0),
         Ok(ir) => ir,
     };

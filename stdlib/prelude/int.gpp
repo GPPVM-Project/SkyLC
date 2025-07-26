@@ -59,3 +59,13 @@ internal def pow(self: int, exp: int) -> int {
 
     return result;
 }
+
+#[operator("+")]
+internal def add_str(self: int, other: str) -> str {
+    return self.to_string() + other;
+}
+
+#[operator("+")]
+internal def add_str(self: str, other: int) -> str {
+    return self + other.to_string();
+}

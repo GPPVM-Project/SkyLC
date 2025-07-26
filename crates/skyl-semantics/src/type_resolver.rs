@@ -98,11 +98,25 @@ impl SemanticAnalyzer {
                             return self.get_static_kind_by_name("bool", expression);
                         }
 
-                        _ => gpp_error!("Invalid arithmetic operator."),
+                        _ => {
+                            return Err(CompilationError::with_span(
+                                CompilationErrorKind::InvalidExpression {
+                                    msg: format!("Invalid arithmetic operator '{}'", op.lexeme),
+                                },
+                                Some(op.line),
+                                op.span,
+                            ));
+                        }
                     }
                 }
 
-                gpp_error!("Invalid arithmetic operator.");
+                return Err(CompilationError::with_span(
+                    CompilationErrorKind::InvalidExpression {
+                        msg: format!("Invalid arithmetic operator '{}'", op.lexeme),
+                    },
+                    Some(op.line),
+                    op.span,
+                ));
             }
             Expression::Logical(left, _, _, span) => {
                 let left_type = self.resolve_expr_type(&left)?;
@@ -377,7 +391,7 @@ impl SemanticAnalyzer {
         match iterator {
             Expression::List(elements, span) => self.resolve_list_type(&elements),
             Expression::Call(callee, paren, args, span) => {
-                self.analyze_call_expression(callee, paren, args);
+                self.analyze_call_expression(callee, paren, args)?;
                 self.resolve_function_return_type(callee, paren, args)
             }
             _ => {

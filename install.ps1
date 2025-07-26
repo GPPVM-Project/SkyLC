@@ -45,7 +45,7 @@ else {
 
 # 3. Compile with cargo
 Write-Host "Step 3: Compiling the workspace with 'cargo build'..."
-cargo build
+cargo build --release
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Cargo build failed. Aborting." -ForegroundColor Red
     exit 1
@@ -117,3 +117,5 @@ Write-Host "Environment variables set successfully." -ForegroundColor Cyan
 # 8. Finished
 Write-Host "`nScript finished successfully!" -ForegroundColor Green
 Write-Host "IMPORTANT: Open a NEW terminal to use 'skylc' and SKYL_LIB globally." -ForegroundColor Magenta
+
+Read-Host -Prompt "Press Enter to exit"

@@ -45,3 +45,20 @@ internal def to_upper(self: str) -> str {
 internal def length(self: str) -> int {
     return str_len(self);
 }
+
+#[operator("+")]
+internal def add(self: str, other: str) -> str {
+    return self.concat(other);
+}
+
+#[operator("*")]
+internal def repeat(self: str, other: int) -> str {
+    let result = "";
+
+    while other > 0 {
+        result = result + self;
+        other--;
+    }
+
+    return result;
+}

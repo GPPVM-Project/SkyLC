@@ -12,6 +12,7 @@ pub fn format_err(error: &CompilationError, file: &SourceFile) -> String {
         let line_idx = line - 1;
         let source_line = lines.get(line_idx).unwrap_or(&"");
 
+        // let content_before = &file.content[0..20];
         let content_before = &file.content[..span.start];
         let last_line_start = content_before.rfind('\n').map(|pos| pos + 1).unwrap_or(0);
         let col_start = span.start - last_line_start;
@@ -106,12 +107,12 @@ fn notefy_error(error: &CompilationError) -> Vec<String> {
         CompilationErrorKind::InvalidKeyword { keyword } => todo!(),
         CompilationErrorKind::InvalidAssignmentTarget => todo!(),
         CompilationErrorKind::ArgumentLimitOverflow => todo!(),
-        CompilationErrorKind::UnexpectedToken { token } => todo!(),
+        CompilationErrorKind::UnexpectedToken { token } => vec![],
         CompilationErrorKind::ExpectedToken {
                                         expect,
                                         found,
                                         after,
-                                    } => todo!(),
+                                    } => vec![],
         CompilationErrorKind::ExpectedConstruction { expect, found } => todo!(),
         CompilationErrorKind::MissingMainFunction => todo!(),
         CompilationErrorKind::DuplicatedVariable { name, previous } => todo!(),
@@ -121,7 +122,7 @@ fn notefy_error(error: &CompilationError) -> Vec<String> {
         CompilationErrorKind::MissingConstruction { construction } => todo!(),
         CompilationErrorKind::InvalidStatementScope { statement } => todo!(),
         CompilationErrorKind::DepthError { msg } => vec![],
-        CompilationErrorKind::InvalidStatementUsage { error } => todo!(),
+        CompilationErrorKind::InvalidStatementUsage { error } => vec![],
         CompilationErrorKind::ExpectType {
                                         expect,
                                         found,
@@ -134,22 +135,22 @@ fn notefy_error(error: &CompilationError) -> Vec<String> {
         CompilationErrorKind::DuplicatedNativeFunction { name } => todo!(),
         CompilationErrorKind::NotFoundType { name } => todo!(),
         CompilationErrorKind::NotFoundField { r#type, field } => todo!(),
-        CompilationErrorKind::ModuleNotFound { path } => todo!(),
+        CompilationErrorKind::ModuleNotFound { path } => vec![],
         CompilationErrorKind::ModuleAccessDenied { path, full_path } => todo!(),
         CompilationErrorKind::ModuleReadError {
                                         path,
                                         full_path,
                                         error,
                                     } => todo!(),
-        CompilationErrorKind::UnsupportedFeature { feature } => todo!(),
+        CompilationErrorKind::UnsupportedFeature { feature } => vec![],
         CompilationErrorKind::InvalidLiteral { line } => todo!(),
         CompilationErrorKind::InvalidPostfixOperatorUsage { msg } => todo!(),
-        CompilationErrorKind::InvalidExpression { msg } => todo!(),
+        CompilationErrorKind::InvalidExpression { msg } => vec![],
         CompilationErrorKind::InexistentType { r#type } => vec![],
         CompilationErrorKind::NotFoundArchetypeMask(not_found_archetype_mask) => todo!(),
         CompilationErrorKind::UsageOfNotInferredVariable { name } => todo!(),
         CompilationErrorKind::UsageOfUndeclaredVariable { name } => vec![],
-        CompilationErrorKind::InvalidAttributeExpression { msg } => todo!(),
+        CompilationErrorKind::InvalidAttributeExpression { msg } => vec![],
         CompilationErrorKind::InvalidOperatorOverload(_) => vec![],
         CompilationErrorKind::MismatchAttrbuteArgument { arg, accepted } => vec![],
         CompilationErrorKind::InvalidConstantEvaluation(_) => todo!(),
@@ -179,7 +180,7 @@ fn hintify_error(err: &CompilationError) -> String {
         CompilationErrorKind::InvalidKeyword { keyword } => todo!(),
         CompilationErrorKind::InvalidAssignmentTarget => todo!(),
         CompilationErrorKind::ArgumentLimitOverflow => todo!(),
-        CompilationErrorKind::UnexpectedToken { token } => format_unexpected_token(token),
+        CompilationErrorKind::UnexpectedToken { token } => format!("Consider removing this token"),
         CompilationErrorKind::ExpectedToken {
             expect,
             found,
@@ -200,7 +201,9 @@ fn hintify_error(err: &CompilationError) -> String {
         CompilationErrorKind::DepthError { msg } => {
             format!("Move the declaration to other scope level.")
         }
-        CompilationErrorKind::InvalidStatementUsage { error } => todo!(),
+        CompilationErrorKind::InvalidStatementUsage { error } => {
+            format!("Consider removing the statement")
+        }
         CompilationErrorKind::ExpectType {
             expect,
             found,
@@ -213,7 +216,10 @@ fn hintify_error(err: &CompilationError) -> String {
         CompilationErrorKind::DuplicatedNativeFunction { name } => todo!(),
         CompilationErrorKind::NotFoundType { name } => todo!(),
         CompilationErrorKind::NotFoundField { r#type, field } => todo!(),
-        CompilationErrorKind::ModuleNotFound { path } => todo!(),
+        CompilationErrorKind::ModuleNotFound { path } => format!(
+            "Consider to create module '{}' before use it",
+            path.join(".")
+        ),
         CompilationErrorKind::ModuleAccessDenied { path, full_path } => todo!(),
         CompilationErrorKind::ModuleReadError {
             path,
@@ -222,7 +228,9 @@ fn hintify_error(err: &CompilationError) -> String {
         } => todo!(),
         CompilationErrorKind::InvalidLiteral { line } => todo!(),
         CompilationErrorKind::InvalidPostfixOperatorUsage { msg } => todo!(),
-        CompilationErrorKind::InvalidExpression { msg } => todo!(),
+        CompilationErrorKind::InvalidExpression { msg } => {
+            format!("Consider removing this expression")
+        }
         CompilationErrorKind::InexistentType { r#type } => {
             format!("Consider declare the '{}' type before use it", r#type)
         }
@@ -231,7 +239,9 @@ fn hintify_error(err: &CompilationError) -> String {
         CompilationErrorKind::UsageOfUndeclaredVariable { name } => {
             format_usage_of_undeclared_variable(name)
         }
-        CompilationErrorKind::InvalidAttributeExpression { msg } => todo!(),
+        CompilationErrorKind::InvalidAttributeExpression { msg } => {
+            format!("Consider change or remove the attribute declaration")
+        }
         CompilationErrorKind::InvalidOperatorOverload(msg) => {
             format!("Consider changing function structure to match with desired overload.")
         }
@@ -289,7 +299,7 @@ fn stringify_error(err: &CompilationError) -> String {
         CompilationErrorKind::MissingConstruction { construction } => todo!(),
         CompilationErrorKind::InvalidStatementScope { statement } => todo!(),
         CompilationErrorKind::DepthError { msg } => format!("{}", msg),
-        CompilationErrorKind::InvalidStatementUsage { error } => todo!(),
+        CompilationErrorKind::InvalidStatementUsage { error } => format!("{}", error),
         CompilationErrorKind::ExpectType {
             expect,
             found,
@@ -302,7 +312,9 @@ fn stringify_error(err: &CompilationError) -> String {
         CompilationErrorKind::DuplicatedNativeFunction { name } => todo!(),
         CompilationErrorKind::NotFoundType { name } => todo!(),
         CompilationErrorKind::NotFoundField { r#type, field } => todo!(),
-        CompilationErrorKind::ModuleNotFound { path } => todo!(),
+        CompilationErrorKind::ModuleNotFound { path } => {
+            format!("Module '{}' not found", path.join("."))
+        }
         CompilationErrorKind::ModuleAccessDenied { path, full_path } => todo!(),
         CompilationErrorKind::ModuleReadError {
             path,
@@ -311,14 +323,14 @@ fn stringify_error(err: &CompilationError) -> String {
         } => todo!(),
         CompilationErrorKind::InvalidLiteral { line } => todo!(),
         CompilationErrorKind::InvalidPostfixOperatorUsage { msg } => todo!(),
-        CompilationErrorKind::InvalidExpression { msg } => todo!(),
+        CompilationErrorKind::InvalidExpression { msg } => format!("{msg}"),
         CompilationErrorKind::InexistentType { r#type } => format_inexistent_type(r#type),
         CompilationErrorKind::UsageOfNotInferredVariable { name } => todo!(),
         CompilationErrorKind::NotFoundArchetypeMask(not_found_archetype_mask) => todo!(),
         CompilationErrorKind::UsageOfUndeclaredVariable { name } => {
             format_usage_of_undeclared_variable(name)
         }
-        CompilationErrorKind::InvalidAttributeExpression { msg } => todo!(),
+        CompilationErrorKind::InvalidAttributeExpression { msg } => format!("{}.", msg),
         CompilationErrorKind::InvalidOperatorOverload(msg) => {
             format!("Invalid operator overload: {}.", msg)
         }

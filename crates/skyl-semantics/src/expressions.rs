@@ -341,18 +341,24 @@ impl SemanticAnalyzer {
                     ))
                 }
 
-                _ => gpp_error!(
-                    "Invalid arithmetic operator '{}'. At line {}.",
-                    token.lexeme,
-                    token.line
-                ),
+                _ => {
+                    return Err(CompilationError::with_span(
+                        CompilationErrorKind::InvalidExpression {
+                            msg: format!("Invalid arithmetic operator '{}'", token.lexeme),
+                        },
+                        Some(token.line),
+                        token.span,
+                    ));
+                }
             }
         } else {
-            gpp_error!(
-                "Invalid arithmetic operator '{}'. At line {}.",
-                token.lexeme,
-                token.line
-            );
+            return Err(CompilationError::with_span(
+                CompilationErrorKind::InvalidExpression {
+                    msg: format!("Invalid arithmetic operator '{}'", token.lexeme),
+                },
+                Some(token.line),
+                token.span,
+            ));
         }
     }
 
@@ -377,8 +383,8 @@ impl SemanticAnalyzer {
         op: &Token,
         right: &Expression,
     ) -> TyResult<AnnotatedExpression> {
-        self.assert_expression_kind(left, self.get_static_kind_by_name("bool", left)?, left);
-        self.assert_expression_kind(right, self.get_static_kind_by_name("bool", right)?, right);
+        self.assert_expression_kind(left, self.get_static_kind_by_name("bool", left)?, left)?;
+        self.assert_expression_kind(right, self.get_static_kind_by_name("bool", right)?, right)?;
 
         let left_kind = self.resolve_expr_type(left)?;
 
@@ -635,7 +641,7 @@ impl SemanticAnalyzer {
                         );
                     }
 
-                    self.assert_function_args(prototype.clone(), args, paren);
+                    self.assert_function_args(prototype.clone(), args, paren)?;
                     Ok(AnnotatedExpression::Call(
                         prototype.clone(),
                         paren.clone(),
@@ -656,7 +662,7 @@ impl SemanticAnalyzer {
                             );
                         }
 
-                        self.assert_function_args(prototype.clone(), args, paren);
+                        self.assert_function_args(prototype.clone(), args, paren)?;
                         Ok(AnnotatedExpression::CallNative(
                             prototype.clone(),
                             paren.clone(),
@@ -666,11 +672,14 @@ impl SemanticAnalyzer {
                     }
 
                     None => {
-                        gpp_error!(
-                            "Function '{}' are not declared in this scope. At line {}.",
-                            name.lexeme.clone(),
-                            name.line
-                        )
+                        return Err(CompilationError::with_span(
+                            CompilationErrorKind::SymbolNotFound {
+                                symbol_kind: format!("function"),
+                                symbol_name: name.lexeme.clone(),
+                            },
+                            Some(name.line),
+                            name.span,
+                        ));
                     }
                 },
             }
@@ -707,7 +716,7 @@ impl SemanticAnalyzer {
                                     paren.line,
                                 )
                                 .as_str(),
-                            );
+                            )?;
 
                             let annotated_arg = self.analyze_expr(&args[i])?;
                             annotated_args.push(Box::new(annotated_arg));
@@ -778,11 +787,17 @@ impl SemanticAnalyzer {
         match attrib {
             Some(att) => {
                 if att.args.len() != expressions.len() {
-                    gpp_error!(
-                        "Expect {} args, but got {}.",
-                        att.args.len(),
-                        expressions.len()
-                    );
+                    return Err(CompilationError::with_span(
+                        CompilationErrorKind::InvalidAttributeExpression {
+                            msg: format!(
+                                "Expect {} arguments, but got {}",
+                                att.args.len(),
+                                expressions.len()
+                            ),
+                        },
+                        Some(token.line),
+                        token.span,
+                    ));
                 }
 
                 let mut index = 0usize;
@@ -806,7 +821,13 @@ impl SemanticAnalyzer {
                 }
             }
             None => {
-                gpp_error!("Attribute '{}' not found.", token.lexeme);
+                return Err(CompilationError::with_span(
+                    CompilationErrorKind::InvalidAttributeExpression {
+                        msg: format!("Attribute '{}' not found", token.lexeme),
+                    },
+                    Some(token.line),
+                    token.span,
+                ));
             }
         }
 

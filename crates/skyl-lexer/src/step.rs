@@ -1,7 +1,7 @@
 use std::any::Any;
 use std::{cell::RefCell, rc::Rc};
 
-use skyl_data::CompilerConfig;
+use skyl_data::{CompilerConfig, CompilerContext};
 use skyl_driver::{
     PipelineStep,
     errors::{CompilerErrorReporter, PipelineError},
@@ -29,6 +29,7 @@ impl PipelineStep for Lexer {
         &mut self,
         input: Box<dyn Any>,
         _config: &CompilerConfig,
+        ctx: Rc<RefCell<CompilerContext>>,
         reporter: Rc<RefCell<CompilerErrorReporter>>,
     ) -> Result<Box<dyn Any>, PipelineError> {
         let source = input

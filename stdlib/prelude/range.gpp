@@ -1,0 +1,48 @@
+type Range {
+    begin: int,
+    end: int,
+    step: int,
+}
+
+type RangeIterator {
+    current: int,
+    range: Range,
+}
+
+def range(begin: int, end: int) -> RangeIterator {
+    let r = Range(begin, end, 1);
+    return RangeIterator(begin, r);
+}
+
+def step(begin: int, end: int, step: int) -> RangeIterator {
+    if step == 0 {
+        println("Range expressions cannot have step equal to 0.");
+    }
+    let r = Range(begin, end, step);
+    return RangeIterator(begin, r);
+}
+
+internal def reverse(self: RangeIterator) -> RangeIterator {
+    let r = self.range;
+    let last = r.end - r.step;
+    let reversed_range = Range(r.end, r.begin - 1, -r.step);
+    return RangeIterator(last, reversed_range);
+}
+
+internal def has_next(self: RangeIterator) -> bool {
+    let step = self.range.step;
+    let end = self.range.end;
+    let current = self.current;
+
+    if step > 0 {
+        return current < end;
+    } else {
+        return current > end;
+    }
+}
+
+internal def next(self: RangeIterator) -> int {
+    let value = self.current;
+    self.current = self.current + self.range.step;
+    return value;
+}

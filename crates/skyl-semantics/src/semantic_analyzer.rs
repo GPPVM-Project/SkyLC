@@ -15,8 +15,8 @@ use std::{
 
 use skyl_data::{
     AnnotatedAST, AnnotatedExpression, AnnotatedStatement, Archetype, Ast, BuiltinAttribute,
-    CoersionKind, CompilerConfig, ContextScope, ContextStack, Decorator, Expression,
-    FieldDeclaration, FieldDescriptor, FunctionPrototype, Literal, MethodDescriptor,
+    CoersionKind, CompilerConfig, CompilerContext, ContextScope, ContextStack, Decorator,
+    Expression, FieldDeclaration, FieldDescriptor, FunctionPrototype, Literal, MethodDescriptor,
     MethodParameter, SemanticCode, SemanticValue, Span, Statement, StaticValue, SymbolKind,
     SymbolTable, Token, TokenKind, TypeDecl, TypeDescriptor, ValueWrapper, read_file_without_bom,
 };
@@ -47,6 +47,7 @@ pub struct SemanticAnalyzer {
     pub(crate) reporter: Rc<RefCell<CompilerErrorReporter>>,
     pub(crate) void_instance: Rc<RefCell<TypeDescriptor>>,
     pub(crate) modules: Vec<String>,
+    pub(crate) ctx: Option<Rc<RefCell<CompilerContext>>>,
 }
 
 impl SemanticAnalyzer {
@@ -297,7 +298,14 @@ impl SemanticAnalyzer {
 
         let mut annotated_statements: TyStmts = Vec::new();
 
-        let mut prelude = self.setup_prelude();
+        let mut prelude = match self.setup_prelude() {
+            Err(e) => {
+                self.report_error(e);
+                vec![]
+            }
+            Ok(p) => p,
+        };
+
         annotated_statements.append(&mut prelude);
 
         while !self.is_at_end() {
@@ -490,7 +498,7 @@ impl SemanticAnalyzer {
     /// # Returns
     /// - `Some(&Statement)` if there is a previous statement after advancing.
     /// - `None` if there is no previous statement after advancing (i.e., if at the beginning).
-    fn advance(&mut self) -> Option<&Statement> {
+    pub(crate) fn advance(&mut self) -> Option<&Statement> {
         self.current_stmt += 1;
         self.previous()
     }
@@ -1083,18 +1091,24 @@ impl SemanticAnalyzer {
         None
     }
 
-    fn setup_prelude(&mut self) -> TyStmts {
+    fn setup_prelude(&mut self) -> TyResult<TyStmts> {
         let mut stmts: TyStmts = Vec::new();
 
         let std_core = self.build_import_path(&["stdlib", "prelude"]);
 
-        self.import(&std_core, &mut stmts);
+        self.import(&std_core, &mut stmts)?;
 
-        stmts
+        Ok(stmts)
     }
 
     fn import(&mut self, path: &Vec<Token>, stmts: &mut TyStmts) -> TyResult<()> {
-        let mut import_stmts = self.analyze_import(path)?;
+        let mut import_stmts = match self.analyze_import(path) {
+            Err(e) => {
+                self.report_error(e);
+                vec![]
+            }
+            Ok(s) => s,
+        };
         stmts.append(&mut import_stmts);
         Ok(())
     }

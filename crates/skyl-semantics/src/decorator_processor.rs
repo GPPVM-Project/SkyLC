@@ -2,16 +2,19 @@ use std::rc::Rc;
 
 use skyl_data::{
     BuiltinAttributeUsage, CoersionKind, Decorator, Expression, FunctionPrototype, Literal,
-    Operator, OperatorKind, Span, Token, TokenKind, ValueWrapper,
+    Operator, Span, Token, TokenKind, ValueWrapper,
 };
-use skyl_driver::errors::{CompilationError, CompilationErrorKind};
+use skyl_driver::{
+    errors::{CompilationError, CompilationErrorKind},
+    gpp_error,
+};
 
 use crate::{SemanticAnalyzer, result::TyResult};
 
-pub const ADD_NAME: &'static str = "add";
-pub const SUB_NAME: &'static str = "sub";
-pub const MULTIPLY_NAME: &'static str = "mul";
-pub const DIV_NAME: &'static str = "div";
+pub const ADD_NAME: &'static str = "+";
+pub const SUB_NAME: &'static str = "-";
+pub const MULTIPLY_NAME: &'static str = "*";
+pub const DIV_NAME: &'static str = "/";
 
 impl SemanticAnalyzer {
     pub(super) fn process_internal_definition(
@@ -19,13 +22,16 @@ impl SemanticAnalyzer {
         name: &Token,
         definition: &FunctionPrototype,
     ) -> TyResult<()> {
+        if self.current_decorator.attributes.is_empty() {
+            return Ok(());
+        }
+
         let decorator = self.current_decorator.clone();
+        self.current_decorator = Decorator::new(Vec::new());
 
         for attribute in decorator.attributes {
             self.process_attribute(name, attribute, definition)?;
         }
-
-        self.current_decorator = Decorator::new(Vec::new());
 
         Ok(())
     }
@@ -82,7 +88,7 @@ impl SemanticAnalyzer {
         function_name: String,
     ) -> TyResult<()> {
         let operator_name = self.evaluate(operator)?.as_string().unwrap();
-        let operator_kind = self.operator_name_to_kind(&operator_name);
+        let operator_kind = self.operator_name_to_kind(&operator_name, location)?;
 
         if self.symbol_table.operators.contains_key(&Operator {
             other: to,
@@ -179,13 +185,29 @@ impl SemanticAnalyzer {
         ))
     }
 
-    pub(crate) fn operator_name_to_kind(&self, operator_name: &str) -> CoersionKind {
+    pub(crate) fn operator_name_to_kind(
+        &self,
+        operator_name: &str,
+        location: &Token,
+    ) -> TyResult<CoersionKind> {
         match operator_name {
-            MULTIPLY_NAME => CoersionKind::Mul,
-            DIV_NAME => CoersionKind::Div,
-            ADD_NAME => CoersionKind::Add,
-            SUB_NAME => CoersionKind::Sub,
-            _ => unreachable!(),
+            MULTIPLY_NAME => Ok(CoersionKind::Mul),
+            DIV_NAME => Ok(CoersionKind::Div),
+            ADD_NAME => Ok(CoersionKind::Add),
+            SUB_NAME => Ok(CoersionKind::Sub),
+            _ => Err(CompilationError::with_span(
+                CompilationErrorKind::MismatchAttrbuteArgument {
+                    arg: operator_name.to_string(),
+                    accepted: vec![
+                        ADD_NAME.into(),
+                        SUB_NAME.into(),
+                        MULTIPLY_NAME.into(),
+                        DIV_NAME.into(),
+                    ],
+                },
+                Some(location.line),
+                location.span,
+            )),
         }
     }
 

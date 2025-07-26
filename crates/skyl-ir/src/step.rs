@@ -2,8 +2,8 @@ use std::any::{type_name, Any};
 use std::{cell::RefCell, rc::Rc};
 
 use skyl_data::{
-    AnnotatedAST, CodeGraph, CompileTimeChunk, CompilerConfig, IntermediateCode, SemanticCode,
-    SymbolTable,
+    AnnotatedAST, CodeGraph, CompileTimeChunk, CompilerConfig, CompilerContext, IntermediateCode,
+    SemanticCode, SymbolTable,
 };
 use skyl_driver::{errors::CompilerErrorReporter, errors::PipelineError, PipelineStep};
 
@@ -32,6 +32,7 @@ impl PipelineStep for IRGenerator {
         &mut self,
         input: Box<dyn Any>,
         config: &CompilerConfig,
+        ctx: Rc<RefCell<CompilerContext>>,
         reporter: Rc<RefCell<CompilerErrorReporter>>,
     ) -> Result<Box<dyn Any>, PipelineError> {
         let semantic_code = input.downcast::<SemanticCode>().map_err(|_| {

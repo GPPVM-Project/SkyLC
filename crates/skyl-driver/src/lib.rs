@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use skyl_data::CompilerConfig;
+use skyl_data::{CompilerConfig, CompilerContext};
 
 pub mod errors;
 pub mod format_err;
@@ -13,6 +13,7 @@ pub trait PipelineStep {
         &mut self,
         input: Box<dyn std::any::Any>,
         config: &CompilerConfig,
+        ctx: Rc<RefCell<CompilerContext>>,
         reporter: Rc<RefCell<CompilerErrorReporter>>,
     ) -> Result<Box<dyn std::any::Any>, PipelineError>;
 }
@@ -35,12 +36,13 @@ impl Pipeline {
         &mut self,
         input: T,
         config: &CompilerConfig,
+        ctx: Rc<RefCell<CompilerContext>>,
         reporter: Rc<RefCell<CompilerErrorReporter>>,
     ) -> Result<Box<dyn std::any::Any>, PipelineError> {
         let mut value: Box<dyn std::any::Any> = Box::new(input);
 
         for stage in &mut self.stages {
-            value = stage.run(value, config, Rc::clone(&reporter))?;
+            value = stage.run(value, config, ctx.clone(), Rc::clone(&reporter))?;
         }
 
         Ok(value)

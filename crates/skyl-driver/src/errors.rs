@@ -1,6 +1,6 @@
 use crate::format_err::*;
-use skyl_data::{Archetype, SourceFile, Span};
-use std::rc::Rc;
+use skyl_data::{read_file_without_bom, Archetype, CompilerContext, SourceFile, Span};
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 #[macro_export]
 macro_rules! gpp_error {
@@ -174,11 +174,12 @@ impl ParseError {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CompilationError {
     pub kind: CompilationErrorKind,
     pub line: Option<usize>,
     pub span: Option<Span>,
+    pub file: Option<String>,
 }
 
 impl CompilationError {
@@ -187,6 +188,7 @@ impl CompilationError {
             kind,
             line,
             span: None,
+            file: None,
         }
     }
 
@@ -195,6 +197,7 @@ impl CompilationError {
             kind,
             line,
             span: Some(span),
+            file: None,
         }
     }
 }
@@ -218,13 +221,17 @@ impl CompilerErrorStack {
 pub struct CompilerErrorReporter {
     stack: CompilerErrorStack,
     file: Option<Rc<SourceFile>>,
+    ctx: Option<Rc<RefCell<CompilerContext>>>,
+    error_files: HashMap<String, SourceFile>,
 }
 
 impl CompilerErrorReporter {
-    pub fn new(file: Rc<SourceFile>) -> Self {
+    pub fn new(file: Rc<SourceFile>, ctx: Option<Rc<RefCell<CompilerContext>>>) -> Self {
         Self {
             stack: CompilerErrorStack::new(),
             file: Some(file),
+            ctx,
+            error_files: HashMap::new(),
         }
     }
 
@@ -232,11 +239,30 @@ impl CompilerErrorReporter {
         Self {
             stack: CompilerErrorStack::new(),
             file: None,
+            ctx: None,
+            error_files: HashMap::new(),
         }
     }
 
-    pub fn report_error(&mut self, error: CompilationError) {
-        self.stack.push(error);
+    pub fn report_error(&mut self, mut error: CompilationError) {
+        if let Some(ctx) = &self.ctx {
+            error.file = Some(ctx.borrow().peek_module());
+            if !self.error_files.contains_key(&error.clone().file.unwrap()) {
+                let file = read_file_without_bom(error.clone().file.unwrap().as_str());
+                let file = match file {
+                    Err(e) => {
+                        gpp_error!("File not found: {}. OS Message: {}", error.file.unwrap(), e)
+                    }
+                    Ok(f) => f,
+                };
+
+                self.error_files.insert(error.clone().file.unwrap(), file);
+            }
+
+            self.stack.push(error);
+        } else {
+            self.stack.push(error);
+        }
     }
 
     pub fn get_errors(&self) -> &Vec<CompilationError> {
@@ -262,7 +288,8 @@ pub fn handle_errors(reporter: &CompilerErrorReporter) {
         let file = reporter.file.as_ref().map(Rc::clone).unwrap().clone();
 
         for error in reporter.get_errors() {
-            let formated_error = format_err(error, &file);
+            let formated_error =
+                format_err(error, &reporter.error_files[&error.file.clone().unwrap()]);
             println!("{}", formated_error);
         }
 

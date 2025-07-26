@@ -231,47 +231,40 @@ impl Parser {
             },
         )?;
 
-        self.eat(
-            TokenKind::Punctuation(PunctuationKind::LeftParen),
-            CompilationErrorKind::ExpectedToken {
-                expect: "(".into(),
-                found: self.peek().lexeme,
-                after: Some("builtin attribute name".into()),
-            },
-        )?;
-
         let mut kinds: Vec<Token> = Vec::new();
 
-        if self.try_eat(&[TokenKind::Identifier]) {
-            kinds.push(self.previous());
+        if self.try_eat(&[TokenKind::Punctuation(PunctuationKind::LeftParen)]) {
+            if self.try_eat(&[TokenKind::Identifier]) {
+                kinds.push(self.previous());
 
-            while self.try_eat(&[TokenKind::Punctuation(PunctuationKind::Comma)]) {
-                let kind = self.eat(
-                    TokenKind::Identifier,
-                    CompilationErrorKind::ExpectedToken {
-                        expect: "identifier".into(),
-                        found: self.peek().lexeme,
-                        after: Some("'.'".into()),
-                    },
-                )?;
+                while self.try_eat(&[TokenKind::Punctuation(PunctuationKind::Comma)]) {
+                    let kind = self.eat(
+                        TokenKind::Identifier,
+                        CompilationErrorKind::ExpectedToken {
+                            expect: "identifier".into(),
+                            found: self.peek().lexeme,
+                            after: Some("'.'".into()),
+                        },
+                    )?;
 
-                kinds.push(kind);
+                    kinds.push(kind);
+                }
             }
-        }
 
-        self.eat(
-            TokenKind::Punctuation(PunctuationKind::RightParen),
-            CompilationErrorKind::ExpectedToken {
-                expect: ")".into(),
-                found: self.peek().lexeme,
-                after: Some("attribute args".into()),
-            },
-        )?;
+            self.eat(
+                TokenKind::Punctuation(PunctuationKind::RightParen),
+                CompilationErrorKind::ExpectedToken {
+                    expect: ")".into(),
+                    found: self.peek().lexeme,
+                    after: Some("attribute args".into()),
+                },
+            )?;
+        }
 
         self.expect_token(
             TokenKind::Punctuation(PunctuationKind::SemiColon),
             "';'",
-            "')'",
+            "attribute declaration",
         )?;
 
         Ok(Statement::BuiltinAttribute(name, kinds))
@@ -506,11 +499,9 @@ impl Parser {
             end_span = right_paren.span;
         }
 
-        Ok(Expression::Attribute(
-            decorator_name,
-            args,
-            start_span.merge(end_span),
-        ))
+        let result = Expression::Attribute(decorator_name, args, start_span.merge(end_span));
+
+        Ok(result)
     }
 
     fn function_declaration(&mut self) -> Result<Statement, ParseError> {
@@ -748,11 +739,116 @@ impl Parser {
     }
 
     fn for_statement(&mut self) -> Result<Statement, ParseError> {
-        Err(ParseError {
-            kind: CompilationErrorKind::UnsupportedFeature { feature: "for" },
-            line: self.previous().line,
-            span: self.peek().span,
-        })
+        let variable_name = self.eat(
+            TokenKind::Identifier,
+            CompilationErrorKind::ExpectedToken {
+                expect: format!("identifier"),
+                found: format!("{}", self.peek().lexeme),
+                after: Some(format!("'for' keyword")),
+            },
+        )?;
+
+        self.eat(
+            TokenKind::Keyword(KeywordKind::In),
+            CompilationErrorKind::ExpectedToken {
+                expect: format!("'in'"),
+                found: format!("{}", self.peek().lexeme),
+                after: Some(format!("variable name")),
+            },
+        )?;
+
+        let iterator = self.expression()?;
+        let iterator_variable_name = Token::new(
+            TokenKind::Identifier,
+            format!("${}", variable_name),
+            variable_name.line,
+            variable_name.column,
+            variable_name.span,
+        );
+
+        let iterator_variable = Statement::Variable(iterator_variable_name.clone(), Some(iterator));
+
+        let paren = Token::new(
+            TokenKind::Punctuation(PunctuationKind::RightParen),
+            ")".into(),
+            self.previous().line,
+            self.previous().column,
+            self.previous().span,
+        );
+
+        self.eat(
+            TokenKind::Punctuation(PunctuationKind::LeftBrace),
+            CompilationErrorKind::ExpectedToken {
+                expect: format!("'{{'"),
+                found: format!("{}", self.peek().lexeme),
+                after: Some(format!("iterator")),
+            },
+        )?;
+
+        let has_next = Token::new(
+            TokenKind::Identifier,
+            "has_next".into(),
+            self.previous().line,
+            self.previous().column,
+            self.previous().span,
+        );
+        let next = Token::new(
+            TokenKind::Identifier,
+            "next".into(),
+            self.previous().line,
+            self.previous().column,
+            self.previous().span,
+        );
+
+        let scope = self.parse_scope()?;
+
+        if let Statement::Scope(stmts) = &scope {
+            if stmts.is_empty() {
+                return Ok(Statement::EndCode);
+            }
+        }
+
+        let for_body = Statement::Scope(vec![
+            Rc::new(Statement::Expression(Expression::Assign(
+                variable_name.clone(),
+                Rc::new(Expression::Call(
+                    Rc::new(Expression::Get(
+                        Rc::new(Expression::Variable(
+                            iterator_variable_name.clone(),
+                            iterator_variable_name.span,
+                        )),
+                        next,
+                        iterator_variable_name.span,
+                    )),
+                    paren.clone(),
+                    Vec::new(),
+                    iterator_variable_name.span,
+                )),
+                variable_name.span,
+            ))),
+            Rc::new(scope),
+        ]);
+
+        Ok(Statement::Scope(vec![
+            Rc::new(iterator_variable),
+            Rc::new(Statement::Variable(variable_name.clone(), None)),
+            Rc::new(Statement::While(
+                Expression::Call(
+                    Rc::new(Expression::Get(
+                        Rc::new(Expression::Variable(
+                            iterator_variable_name.clone(),
+                            iterator_variable_name.span,
+                        )),
+                        has_next,
+                        iterator_variable_name.span,
+                    )),
+                    paren,
+                    Vec::new(),
+                    iterator_variable_name.span,
+                ),
+                Box::new(for_body),
+            )),
+        ]))
     }
 
     fn import_statement(&mut self) -> Result<Statement, ParseError> {
@@ -1348,6 +1444,7 @@ impl Parser {
             match self.peek().kind {
                 TokenKind::Punctuation(p) => match p {
                     PunctuationKind::SemiColon
+                    | PunctuationKind::Hash
                     | PunctuationKind::RightBrace
                     | PunctuationKind::RightParen => return,
                     _ => {
