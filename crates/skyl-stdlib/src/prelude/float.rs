@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use skyl_data::objects::Value;
 use skyl_ffi::{register_native_funcs, NativeBridge, NativeLibrary};
 pub struct GPPFloatLibrary;
@@ -19,10 +21,18 @@ impl GPPFloatLibrary {
 
         unreachable!("Found value '{}'.", &args[0]);
     }
+
+    fn float_to_string(args: Vec<Value>) -> Value {
+        if let Value::Float(f) = &args[0] {
+            return Value::String(Rc::new(f.to_string()));
+        }
+
+        unreachable!("Found value '{}'.", &args[0]);
+    }
 }
 
 impl NativeLibrary for GPPFloatLibrary {
     fn register_functions(&self, bridge: &mut dyn NativeBridge) {
-        register_native_funcs!(bridge, [float_to_int, float_sqrt,]);
+        register_native_funcs!(bridge, [float_to_int, float_sqrt, float_to_string]);
     }
 }

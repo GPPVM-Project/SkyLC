@@ -3,20 +3,19 @@ use std::path::PathBuf;
 use clap::{command, Parser, Subcommand};
 
 #[derive(Parser, Debug)]
-#[command(author, version, about, long_about = None)]
-#[command(propagate_version = true)]
+#[command(author, about, long_about = None, disable_version_flag = true)]
 pub struct Cli {
     #[command(subcommand)]
-    pub command: Commands,
+    pub command: Option<Commands>,
+
+    #[arg(short = 'v', long = "version")]
+    pub show_version: bool,
 }
 
 #[derive(Subcommand, Debug, Clone)]
 pub enum Commands {
     #[command(name = "compile", short_flag = 'c')]
     Compile(CompileArgs),
-
-    #[command(name = "version", short_flag = 'v')]
-    Version,
 }
 
 #[derive(Parser, Debug, Clone)]

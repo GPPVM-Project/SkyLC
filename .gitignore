@@ -13,3 +13,4 @@ Cargo.lock
 Thumbs.db
 
 .env
+.VSCodeCounter

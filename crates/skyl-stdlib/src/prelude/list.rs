@@ -21,7 +21,8 @@ impl GPPListLibrary {
     fn list_append(args: Vec<Value>) -> Value {
         if let Value::Object(obj_ptr) = &args[0] {
             let value = &args[1];
-            unsafe { obj_ptr.obj.as_mut().unwrap() }
+            obj_ptr
+                .borrow_mut()
                 .as_any_mut()
                 .downcast_mut::<List>()
                 .unwrap()
@@ -39,7 +40,8 @@ impl GPPListLibrary {
             let value = &args[1];
 
             if let Value::Int(i) = value {
-                unsafe { obj_ptr.obj.as_mut().unwrap() }
+                obj_ptr
+                    .borrow_mut()
                     .as_any_mut()
                     .downcast_mut::<List>()
                     .unwrap()

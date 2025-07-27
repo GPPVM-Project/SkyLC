@@ -2,4 +2,20 @@ def main() -> void {
    for i in 10.down_to(2) {
       println(i);
    }
+
+   for i in range(0, 10) {
+      println(i);
+   }
+
+   for i in range(0, 10).rev() {
+      println(i);
+   }
+
+   for i in range(0, 10).skip(3).rev() {
+      println(i);
+   }
+
+   for i in step(0, 10, 2).rev() {
+      println(i);
+   }
 }

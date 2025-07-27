@@ -69,7 +69,7 @@ New-Item -ItemType Directory -Force $OutputLibDir | Out-Null
 Write-Host "Output directories created." -ForegroundColor Cyan
 
 # 5. Copy the binary
-$SourceExe = ".\target\debug\skylc.exe"
+$SourceExe = ".\target\release\skylc.exe"
 if (-not (Test-Path $SourceExe)) {
     Write-Error "Executable '$SourceExe' not found. Build may have failed."
     exit 1

@@ -361,7 +361,8 @@ impl VirtualMachine {
 
         if let Value::Object(obj_ptr) = object {
             self.push(
-                unsafe { obj_ptr.borrow() }
+                obj_ptr
+                    .borrow()
                     .as_any()
                     .downcast_ref::<Instance>()
                     .unwrap()
@@ -377,7 +378,8 @@ impl VirtualMachine {
         let index = self.read_byte();
 
         if let Value::Object(obj_ptr) = &mut object {
-            unsafe { obj_ptr.borrow_mut() }
+            obj_ptr
+                .borrow_mut()
                 .as_any_mut()
                 .downcast_mut::<Instance>()
                 .unwrap()
@@ -396,8 +398,8 @@ impl VirtualMachine {
             .cloned()
             .collect::<Vec<_>>();
 
-        let obj = self.allocate_object(Instance::new(fields));
-        self.push(Value::Object(obj));
+        let obj = Value::Object(Rc::new(RefCell::new(Instance::new(fields))));
+        self.push(obj);
     }
 
     #[inline]
@@ -410,7 +412,7 @@ impl VirtualMachine {
             Value::Float(f) => println!("{}", f),
             Value::String(s) => println!("{}", s),
             Value::Object(obj) => {
-                println!("{}", unsafe { obj.borrow() }.to_string());
+                println!("{}", obj.borrow().to_string());
             }
             _ => todo!(),
         }
@@ -595,7 +597,7 @@ impl VirtualMachine {
         let list = self.pop();
 
         if let Value::Object(obj_ptr) = list {
-            let instance = unsafe { obj_ptr.borrow() };
+            let instance = obj_ptr.borrow();
             let list = instance.as_any().downcast_ref::<List>().unwrap();
 
             if let Value::Int(i) = index {
@@ -626,8 +628,8 @@ impl VirtualMachine {
             elements.push(self.stack[self.sp + i].clone());
         }
 
-        let list = self.allocate_object(List::new(elements));
-        self.push(Value::Object(list));
+        let list = List::new(elements);
+        self.push(Value::Object(Rc::new(RefCell::new(list))));
     }
 
     fn allocate_object<T: Object + 'static>(&mut self, obj: T) -> GcRef {
@@ -783,7 +785,7 @@ impl VirtualMachine {
 
         for i in 0..self.sp {
             if let Value::Object(obj_ptr) = &self.stack[i] {
-                print!("{}, ", unsafe { obj_ptr.borrow() }.to_string());
+                print!("{}, ", obj_ptr.borrow().to_string());
             } else {
                 print!("{:?}, ", self.stack[i]);
             }

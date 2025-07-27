@@ -8,7 +8,11 @@ use skyl_ir::IRGenerator;
 use skyl_semantics::SemanticAnalyzer;
 use skyl_stdlib::StdLibrary;
 use skyl_vm::virtual_machine::VirtualMachine;
-use skylc::{decompiler::Decompiler, find_stdlib_path};
+use skylc::{
+    decompiler::Decompiler,
+    find_stdlib_path,
+    version::{CODENAME, VERSION},
+};
 use std::{cell::RefCell, rc::Rc};
 
 use cli::{Cli, Commands, CompileArgs};
@@ -18,16 +22,30 @@ use skyl_driver::{
 };
 use skyl_lexer::Lexer;
 
-fn main() -> Result<()> {
+#[cfg(debug_assertions)]
+fn load_dotenv() {
     dotenvy::dotenv().unwrap();
+}
+
+#[cfg(not(debug_assertions))]
+fn load_dotenv() {}
+
+fn main() -> Result<()> {
+    load_dotenv();
 
     let cli_args = Cli::parse();
 
-    match &cli_args.command {
-        Commands::Compile(args) => {
-            compile(args)?;
+    if cli_args.show_version {
+        version();
+        return Ok(());
+    }
+
+    if let Some(command) = &cli_args.command {
+        match command {
+            Commands::Compile(args) => {
+                compile(args)?;
+            }
         }
-        _ => {}
     }
 
     Ok(())
@@ -96,4 +114,10 @@ fn compile(args: &CompileArgs) -> Result<()> {
     vm.interpret();
 
     Ok(())
+}
+
+fn version() {
+    let _ascii_art = include_str!("../../assets/ascii-art.txt");
+    // println!("\n{}", _ascii_art);
+    println!("Skyl {} {}", VERSION, CODENAME);
 }

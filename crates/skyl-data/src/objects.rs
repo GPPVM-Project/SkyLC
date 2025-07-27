@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 #![allow(unused_macros)]
 use std::{
+    cell::RefCell,
     fmt::{Debug, Display},
     rc::Rc,
 };
@@ -24,7 +25,7 @@ pub enum Value {
     Bool(bool),
     String(Rc<String>),
     Void,
-    Object(GcRef),
+    Object(Rc<RefCell<dyn Object>>),
 }
 
 pub enum ObjectColor {}
@@ -39,8 +40,8 @@ impl PartialEq for Value {
             (String(a), String(b)) => a == b,
             (Void, Void) => true,
             (Object(a), Object(b)) => {
-                let a_ref = unsafe { a.borrow() };
-                let b_ref = unsafe { b.borrow() };
+                let a_ref = a.borrow();
+                let b_ref = b.borrow();
                 a_ref.eq_object(&*b_ref)
             }
             _ => false,
@@ -58,9 +59,7 @@ impl Debug for Value {
             Value::Float(v) => f.write_str(&format!("{}", v)),
             Value::String(v) => f.write_str(&format!("{}", v)),
             Value::Void => f.write_str("void"),
-            Value::Object(obj_ptr) => {
-                f.write_str(&format!("{}", unsafe { obj_ptr.borrow().to_string() }))
-            }
+            Value::Object(obj_ptr) => f.write_str(&format!("{}", obj_ptr.borrow().to_string())),
         }
     }
 }
@@ -150,8 +149,9 @@ impl Object for Instance {
 
         for value in &self.fields {
             if let Value::Object(gc_ref) = value {
-                let obj = unsafe { gc_ref.borrow() };
-                size += obj.get_size();
+                todo!();
+                let obj = unsafe { gc_ref };
+                size += obj.borrow().get_size();
             }
         }
 
@@ -161,7 +161,8 @@ impl Object for Instance {
     fn trace_references(&self, tracer: &mut dyn FnMut(&GcRef)) {
         for field in &self.fields {
             if let Value::Object(obj_ref) = field {
-                tracer(obj_ref);
+                todo!();
+                //tracer(obj_ref);
             }
         }
     }
@@ -212,8 +213,9 @@ impl Object for List {
 
         for value in &self.elements {
             if let Value::Object(gc_ref) = value {
-                let obj = unsafe { gc_ref.borrow() };
-                size += obj.get_size();
+                todo!();
+                let obj = unsafe { gc_ref };
+                size += obj.borrow().get_size();
             }
         }
 
@@ -223,7 +225,8 @@ impl Object for List {
     fn trace_references(&self, tracer: &mut dyn FnMut(&GcRef)) {
         for value in &self.elements {
             if let Value::Object(obj_ref) = value {
-                tracer(obj_ref);
+                todo!();
+                //tracer(obj_ref);
             }
         }
     }

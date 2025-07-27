@@ -1,7 +1,8 @@
 native def float_sqrt(f: float) -> float;
 native def float_to_int(f: float) -> int;
+native def float_to_string(f: float) -> str;
 
-internal def sqrt(self: float) -> float{
+internal def sqrt(self: float) -> float {
     return float_sqrt(self);
 }
 
@@ -18,4 +19,14 @@ internal def pow(self: float, exp: int) -> float {
     }
 
     return result;
+}
+
+#[operator("+")]
+internal def add_str(self: float, other: str) -> str {
+    return float_to_string(self) + other;
+}
+
+#[operator("+")]
+internal def add_float(self: str, other: float) -> str {
+    return self + float_to_string(other);
 }
