@@ -4,14 +4,24 @@ type Range {
     step: int,
 }
 
+internal def to_string(self: Range) -> str {
+    return "<Range::" + self.begin + "::" + self.end + "::" + self.step + ">";
+}
+
 type RangeIterator {
     current: int,
     range: Range,
+    skipped: bool,
+    to_skip: int,
+}
+
+internal def to_string(self: RangeIterator) -> str {
+    return "<RangeIterator::" + self.current + "::" + self.range.to_string() + "::skip=" + self.to_skip.to_string() + "::skipped=" + self.skipped.to_string() + ">";
 }
 
 def range(begin: int, end: int) -> RangeIterator {
     let r = Range(begin, end, 1);
-    return RangeIterator(begin, r);
+    return RangeIterator(begin, r, false, 0);
 }
 
 def step(begin: int, end: int, step: int) -> RangeIterator {
@@ -19,17 +29,22 @@ def step(begin: int, end: int, step: int) -> RangeIterator {
         println("Range expressions cannot have step equal to 0.");
     }
     let r = Range(begin, end, step);
-    return RangeIterator(begin, r);
+    return RangeIterator(begin, r, false, 0);
 }
 
-internal def reverse(self: RangeIterator) -> RangeIterator {
+internal def skip(self: RangeIterator, n: int) -> RangeIterator {
+    // Retorna um novo iterator com skip configurado
+    return RangeIterator(self.current, self.range, false, n);
+}
+
+internal def rev(self: RangeIterator) -> RangeIterator {
     let r = self.range;
     let last = r.end - r.step;
     let reversed_range = Range(r.end, r.begin - 1, -r.step);
-    return RangeIterator(last, reversed_range);
+    return RangeIterator(last, reversed_range, false, self.to_skip);
 }
 
-internal def has_next(self: RangeIterator) -> bool {
+internal def _has_next_raw(self: RangeIterator) -> bool {
     let step = self.range.step;
     let end = self.range.end;
     let current = self.current;
@@ -41,8 +56,39 @@ internal def has_next(self: RangeIterator) -> bool {
     }
 }
 
-internal def next(self: RangeIterator) -> int {
+internal def _next_raw(self: RangeIterator) -> int {
     let value = self.current;
     self.current = self.current + self.range.step;
     return value;
+}
+
+internal def has_next(self: RangeIterator) -> bool {
+    if not self.skipped and self.to_skip > 0 {
+        let i = 0;
+        while i < self.to_skip and self._has_next_raw() {
+            self._next_raw();
+            i = i + 1;
+        }
+        self.skipped = true;
+    }
+    return self._has_next_raw();
+}
+
+internal def next(self: RangeIterator) -> int {
+    if not self.skipped and self.to_skip > 0 {
+        self.has_next();
+    }
+    return self._next_raw();
+}
+
+internal def copy(self: RangeIterator) -> RangeIterator {
+    return RangeIterator(self.current, Range(self.range.begin, self.range.end, self.range.step), self.skipped, self.to_skip);
+}
+
+internal def times(self: int) -> RangeIterator {
+    return range(0, self);
+}
+
+internal def down_to(self: int, to: int) -> RangeIterator {
+    return step(self, to - 1, -1);
 }

@@ -1,5 +1,5 @@
 def main() -> void {
-   for i in step(0, 10, 2).reverse() {
-      println("Count" + ": " + i + ";");
+   for i in 10.down_to(2) {
+      println(i);
    }
 }

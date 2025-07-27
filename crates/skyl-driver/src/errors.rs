@@ -159,6 +159,15 @@ pub enum CompilationErrorKind {
         other: String,
         operator: String,
     },
+    MismatchArgumentCount {
+        expected: usize,
+        found: usize,
+        function_name: String,
+    },
+    AssignTypeError {
+        kind: String,
+        found: String,
+    },
 }
 
 #[derive(Debug)]

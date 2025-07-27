@@ -187,8 +187,8 @@ impl SemanticAnalyzer {
 
                     self.assert_archetype_kind(
                         &expression,
-                        self.get_static_kind_by_name("number", expression)?,
-                        "'not' operator only be applyed in booleans.",
+                        self.get_static_kind_by_name("bool", expression)?,
+                        "'not' operator only be applyed in booleans",
                     )?;
 
                     Ok(AnnotatedExpression::Unary(
@@ -438,12 +438,14 @@ impl SemanticAnalyzer {
                 match symbol_type {
                     Some(kind) => {
                         if kind.borrow().id != value_type.borrow().id {
-                            gpp_error!(
-                                "Cannot assign '{}' with '{}' instance. At line {}.",
-                                kind.borrow().name,
-                                value_type.borrow().name,
-                                token.line
-                            );
+                            return Err(CompilationError::with_span(
+                                CompilationErrorKind::AssignTypeError {
+                                    kind: kind.borrow().name.clone(),
+                                    found: value_type.borrow().name.clone(),
+                                },
+                                Some(token.line),
+                                token.span.merge(expression.span()),
+                            ));
                         }
 
                         Ok(AnnotatedExpression::Assign(
@@ -633,12 +635,15 @@ impl SemanticAnalyzer {
                     let prototype = prototype.clone();
 
                     if prototype.arity != args.len() {
-                        gpp_error!(
-                            "Expect {} arguments, but got {}. At line {}.",
-                            prototype.arity,
-                            args.len(),
-                            paren.line
-                        );
+                        return Err(CompilationError::with_span(
+                            CompilationErrorKind::MismatchArgumentCount {
+                                expected: prototype.arity,
+                                found: args.len(),
+                                function_name: prototype.name,
+                            },
+                            Some(name.line),
+                            name.span,
+                        ));
                     }
 
                     self.assert_function_args(prototype.clone(), args, paren)?;

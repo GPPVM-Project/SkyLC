@@ -212,12 +212,14 @@ impl SemanticAnalyzer {
                                         .clone());
                                 }
                                 None => {
-                                    gpp_error!(
-                                        "Variable '{}' is a '{}' instance and not have '{}' field.",
-                                        path[index].lexeme.clone(),
-                                        current_kind.unwrap().borrow().name,
-                                        field.lexeme.clone()
-                                    );
+                                    return Err(CompilationError::with_span(
+                                        CompilationErrorKind::NotFoundField {
+                                            r#type: type_descriptor.borrow().name.clone(),
+                                            field: field.lexeme.clone(),
+                                        },
+                                        Some(field.line),
+                                        field.span,
+                                    ));
                                 }
                             },
                             Some(field_decl) => Some(field_decl.kind.clone()),
@@ -252,12 +254,14 @@ impl SemanticAnalyzer {
                                         .clone(),
                                 ),
                                 None => {
-                                    gpp_error!(
-                                        "Variable '{}' is a '{}' instance and not have '{}' field.",
-                                        path[index].lexeme.clone(),
-                                        current_kind.clone().unwrap().borrow().name,
-                                        field.lexeme.clone()
-                                    );
+                                    return Err(CompilationError::with_span(
+                                        CompilationErrorKind::NotFoundField {
+                                            r#type: type_descriptor.borrow().name.clone(),
+                                            field: field.lexeme.clone(),
+                                        },
+                                        Some(field.line),
+                                        field.span,
+                                    ));
                                 }
                             },
                         }

@@ -625,6 +625,17 @@ impl SemanticAnalyzer {
                     ),
                 },
                 None => {
+                    if i == 0 {
+                        return Err(CompilationError::with_span(
+                            CompilationErrorKind::SymbolNotFound {
+                                symbol_kind: format!("variable"),
+                                symbol_name: token.lexeme.clone(),
+                            },
+                            Some(token.line),
+                            token.span,
+                        ));
+                    }
+
                     if self.check_type_exists(&token.lexeme) {
                         return self.get_static_kind_by_name(
                             &token.lexeme,
