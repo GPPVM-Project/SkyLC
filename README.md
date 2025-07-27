@@ -1,6 +1,6 @@
 # GPPVM
 
-**GPPVM** (General Purpose Programming Virtual Machine) is a modern programming language and stack-based virtual machine inspired by Java and C#, designed with strong static semantics and efficient bytecode execution.
+**GPPVM** (General Purpose Parallel Virtual Machine) is a modern programming language and stack-based virtual machine inspired by Java and C#, designed with strong static semantics and efficient bytecode execution.
 
 > “Compile with confidence, execute with elegance.”
 
