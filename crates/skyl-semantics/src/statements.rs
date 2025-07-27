@@ -3,7 +3,7 @@ use std::{cell::RefCell, cmp::Ordering, collections::HashMap, path::PathBuf, rc:
 use skyl_data::{
     AnnotatedExpression, AnnotatedStatement, Archetype, Ast, BuiltinAttributeUsage, Decorator,
     Expression, FieldDeclaration, FieldDescriptor, FunctionPrototype, MethodParameter,
-    SemanticValue, Statement, SymbolKind, Token, TypeDecl, TypeDescriptor, ValueWrapper,
+    SemanticValue, Span, Statement, SymbolKind, Token, TypeDecl, TypeDescriptor, ValueWrapper,
     read_file_without_bom,
 };
 use skyl_driver::{
@@ -31,40 +31,48 @@ impl SemanticAnalyzer {
     /// # Returns
     ///
     /// An `AnnotatedStatement` containing the analyzed and validated statement.
-    pub(super) fn analyze_stmt(&mut self, stmt: &Statement) -> Result<TyStmts, CompilationError> {
+    pub(super) fn analyze_stmt(
+        &mut self,
+        stmt: &Statement,
+        span: &Span,
+        line: &usize,
+    ) -> Result<TyStmts, CompilationError> {
         match stmt {
-            Statement::Return(keyword, value) => Ok(vec![self.analyze_return(keyword, value)?]),
-            Statement::Expression(expr) => Ok(vec![AnnotatedStatement::Expression(
+            Statement::Return(keyword, value, span, line) => {
+                Ok(vec![self.analyze_return(keyword, value)?])
+            }
+            Statement::Expression(expr, span, line) => Ok(vec![AnnotatedStatement::Expression(
                 self.analyze_expr(expr)?,
+                span.clone(),
+                line.clone(),
             )]),
-            Statement::Decorator(hash_token, attribs) => {
+            Statement::Decorator(hash_token, attribs, span, line) => {
                 Ok(vec![self.analyze_decorator(hash_token, attribs)?])
             }
-            Statement::Type(name, archetypes, fields) => {
+            Statement::Type(name, archetypes, fields, span, line) => {
                 let result = self.analyze_type(name, archetypes, fields);
                 Ok(vec![result?])
             }
-            Statement::Function(name, params, body, return_kind) => {
-                let result = self.analyze_function(name, params, &body, return_kind);
-                Ok(vec![result?])
+            Statement::Function(name, params, body, return_kind, span, line) => {
+                let result = self.analyze_function(name, params, &body, return_kind)?;
+                self.analyze_control_flow(&result);
+                Ok(vec![result])
             }
-            Statement::NativeFunction(name, params, return_kind) => {
+            Statement::NativeFunction(name, params, return_kind, span, line) => {
                 Ok(vec![self.analyze_native_function(
                     name,
                     params,
                     return_kind,
                 )?])
             }
-            Statement::Variable(name, value) => {
+            Statement::Variable(name, value, span, line) => {
                 Ok(vec![self.analyze_variable_declaration(name, value)?])
             }
-            Statement::ForEach(variable, condition, body) => {
-                Ok(vec![self.analyze_iterator(variable, condition, &body)?])
-            }
-            Statement::While(condition, body) => {
+
+            Statement::While(condition, body, span, line) => {
                 Ok(vec![self.analyze_while_stmt(condition, body)?])
             }
-            Statement::If(keyword, condition, body, else_branch) => {
+            Statement::If(keyword, condition, body, else_branch, span, line) => {
                 Ok(vec![self.analyze_if_stmt(
                     keyword,
                     condition,
@@ -72,17 +80,18 @@ impl SemanticAnalyzer {
                     else_branch,
                 )?])
             }
-            Statement::BuiltinAttribute(name, kinds) => {
+            Statement::BuiltinAttribute(name, kinds, span, line) => {
                 Ok(vec![self.analyze_builtin_attribute(name, kinds)?])
             }
-            Statement::InternalDefinition(name, params, body, return_kind) => {
-                let result = self.analyze_internal_definition(name, params, body, return_kind);
-                Ok(vec![result?])
+            Statement::InternalDefinition(name, params, body, return_kind, span, line) => {
+                let result = self.analyze_internal_definition(name, params, body, return_kind)?;
+                self.analyze_control_flow(&result);
+                Ok(vec![result])
             }
-            Statement::DestructurePattern(fields, value) => {
+            Statement::DestructurePattern(fields, value, span, line) => {
                 Ok(self.analyze_destructure_pattern(fields, value)?)
             }
-            Statement::Scope(stmts) => {
+            Statement::Scope(stmts, span, line) => {
                 let stmts = self.analyze_scope(stmts)?;
                 let mut boxed_statements: Vec<Box<AnnotatedStatement>> = Vec::new();
 
@@ -90,9 +99,13 @@ impl SemanticAnalyzer {
                     boxed_statements.push(Box::new(stmt));
                 }
 
-                Ok(vec![AnnotatedStatement::Scope(boxed_statements)])
+                Ok(vec![AnnotatedStatement::Scope(
+                    boxed_statements,
+                    span.clone(),
+                    line.clone(),
+                )])
             }
-            Statement::Import(module) => {
+            Statement::Import(module, span, line) => {
                 let result = self.analyze_import(module);
 
                 match result {
@@ -147,7 +160,12 @@ impl SemanticAnalyzer {
                     value_kind.clone(),
                 );
 
-                declarations.push(AnnotatedStatement::Variable(field.clone(), Some(field_get)));
+                declarations.push(AnnotatedStatement::Variable(
+                    field.clone(),
+                    Some(field_get),
+                    fields.first().unwrap().span.merge(value.span()),
+                    fields.first().unwrap().line,
+                ));
             } else {
                 return Err(CompilationError::with_span(
                     CompilationErrorKind::NotFoundField {
@@ -169,7 +187,7 @@ impl SemanticAnalyzer {
         self.begin_scope();
 
         for stmt in stmts {
-            let mut annotated_stmt = self.analyze_stmt(stmt)?;
+            let mut annotated_stmt = self.analyze_stmt(stmt, &stmt.span(), &stmt.line())?;
             annotated_stmts.append(&mut annotated_stmt);
         }
 
@@ -262,7 +280,15 @@ impl SemanticAnalyzer {
         self.statements = ast.statements.clone();
 
         for stmt in ast.statements {
-            let mut s = match self.analyze_stmt(&stmt) {
+            let mut s = match self.analyze_stmt(
+                &stmt,
+                &module
+                    .first()
+                    .unwrap()
+                    .span
+                    .merge(module.last().unwrap().span),
+                &module.first().unwrap().line,
+            ) {
                 Err(e) => {
                     self.report_error(e);
                     vec![]
@@ -357,9 +383,9 @@ impl SemanticAnalyzer {
 
         let mut annotated_body = Vec::new();
         match body {
-            Statement::Scope(stmts) => {
+            Statement::Scope(stmts, span, line) => {
                 for stmt in stmts {
-                    let inner_stmts = self.analyze_stmt(stmt);
+                    let inner_stmts = self.analyze_stmt(stmt, span, line);
 
                     match inner_stmts {
                         Err(e) => self.report_error(e),
@@ -401,7 +427,13 @@ impl SemanticAnalyzer {
         Ok(AnnotatedStatement::InternalDefinition(
             target,
             function_definition,
-            Box::new(AnnotatedStatement::Scope(annotated_body)),
+            Box::new(AnnotatedStatement::Scope(
+                annotated_body,
+                body.span(),
+                body.line(),
+            )),
+            name.span.merge(body.span()),
+            name.line,
         ))
     }
 
@@ -437,6 +469,8 @@ impl SemanticAnalyzer {
         Ok(AnnotatedStatement::BuiltinAttribute(
             name.clone(),
             att_kinds,
+            name.span.clone(),
+            name.line.clone(),
         ))
     }
 
@@ -484,9 +518,9 @@ impl SemanticAnalyzer {
         let mut annotated_body = Vec::new();
 
         match body {
-            Statement::Scope(stmts) => {
+            Statement::Scope(stmts, span, line) => {
                 for stmt in stmts {
-                    for s in self.analyze_stmt(stmt)? {
+                    for s in self.analyze_stmt(stmt, span, line)? {
                         annotated_body.push(Box::new(s));
                     }
                 }
@@ -507,11 +541,11 @@ impl SemanticAnalyzer {
 
         match else_branch {
             Some(stmt) => match stmt.as_ref() {
-                Statement::Scope(stmts) => {
+                Statement::Scope(stmts, span, line) => {
                     self.begin_scope();
 
                     for stmt in stmts {
-                        for s in self.analyze_stmt(stmt)? {
+                        for s in self.analyze_stmt(stmt, span, line)? {
                             annotated_else.push(Box::new(s));
                         }
                     }
@@ -521,18 +555,34 @@ impl SemanticAnalyzer {
                     Ok(AnnotatedStatement::If(
                         keyword.clone(),
                         annotated_condition,
-                        Box::new(AnnotatedStatement::Scope(annotated_body)),
-                        Some(Box::new(AnnotatedStatement::Scope(annotated_else))),
+                        Box::new(AnnotatedStatement::Scope(
+                            annotated_body,
+                            body.span(),
+                            body.line(),
+                        )),
+                        Some(Box::new(AnnotatedStatement::Scope(
+                            annotated_else,
+                            span.clone(),
+                            line.clone(),
+                        ))),
+                        span.clone(),
+                        line.clone(),
                     ))
                 }
-                Statement::If(keyword, condition, body, else_branch) => {
+                Statement::If(keyword, condition, body, else_branch, span, line) => {
                     let annotated_else_branch =
                         self.analyze_if_stmt(keyword, condition, body, else_branch)?;
                     return Ok(AnnotatedStatement::If(
                         keyword.clone(),
                         annotated_condition,
-                        Box::new(AnnotatedStatement::Scope(annotated_body)),
+                        Box::new(AnnotatedStatement::Scope(
+                            annotated_body,
+                            span.clone(),
+                            line.clone(),
+                        )),
                         Some(Box::new(annotated_else_branch)),
+                        span.clone(),
+                        line.clone(),
                     ));
                 }
                 _ => gpp_error!("Statement {:?} is not allowed here.", stmt),
@@ -541,8 +591,14 @@ impl SemanticAnalyzer {
             None => Ok(AnnotatedStatement::If(
                 keyword.clone(),
                 annotated_condition,
-                Box::new(AnnotatedStatement::Scope(annotated_body)),
+                Box::new(AnnotatedStatement::Scope(
+                    annotated_body,
+                    body.span(),
+                    body.line(),
+                )),
                 None,
+                body.span(),
+                body.line(),
             )),
         }
     }
@@ -574,9 +630,9 @@ impl SemanticAnalyzer {
         let mut annotated_body: Vec<Box<AnnotatedStatement>> = Vec::new();
 
         match body {
-            Statement::Scope(statements) => {
+            Statement::Scope(statements, span, line) => {
                 for stmt in statements {
-                    for s in self.analyze_stmt(stmt)? {
+                    for s in self.analyze_stmt(stmt, span, line)? {
                         annotated_body.push(Box::new(s));
                     }
                 }
@@ -596,7 +652,13 @@ impl SemanticAnalyzer {
 
         Ok(AnnotatedStatement::While(
             annotated_condition,
-            Box::new(AnnotatedStatement::Scope(annotated_body)),
+            Box::new(AnnotatedStatement::Scope(
+                annotated_body,
+                body.span(),
+                body.line(),
+            )),
+            condition.span().merge(body.span()),
+            condition.line(),
         ))
     }
 
@@ -657,9 +719,9 @@ impl SemanticAnalyzer {
         let mut annotated_body = Vec::new();
 
         match body {
-            Statement::Scope(stmts) => {
+            Statement::Scope(stmts, span, line) => {
                 for stmt in stmts {
-                    let stmt_vec = self.analyze_stmt(stmt)?;
+                    let stmt_vec = self.analyze_stmt(stmt, span, line)?;
 
                     for s in stmt_vec {
                         annotated_body.push(Box::new(s));
@@ -674,7 +736,13 @@ impl SemanticAnalyzer {
         Ok(AnnotatedStatement::ForEach(
             variable.clone(),
             annotated_iterator,
-            Box::new(AnnotatedStatement::Scope(annotated_body)),
+            Box::new(AnnotatedStatement::Scope(
+                annotated_body,
+                body.span(),
+                body.line(),
+            )),
+            variable.span.merge(body.span()),
+            variable.line,
         ))
     }
 
@@ -732,13 +800,20 @@ impl SemanticAnalyzer {
                     Ok(AnnotatedStatement::Variable(
                         name.clone(),
                         Some(annotated_value),
+                        name.span.merge(expr.span()),
+                        name.line.clone(),
                     ))
                 }
                 None => {
                     let value = SemanticValue::new(None, ValueWrapper::Internal, name.line);
-                    let context = &mut self.context();
+                    let context = self.context();
                     context.declare_name(&name.lexeme, value);
-                    Ok(AnnotatedStatement::Variable(name.clone(), None))
+                    Ok(AnnotatedStatement::Variable(
+                        name.clone(),
+                        None,
+                        name.span,
+                        name.line,
+                    ))
                 }
             },
         }
@@ -798,7 +873,11 @@ impl SemanticAnalyzer {
 
         self.current_symbol = name.lexeme.clone();
 
-        Ok(AnnotatedStatement::NativeFunction(function_definition))
+        Ok(AnnotatedStatement::NativeFunction(
+            function_definition,
+            name.span.merge(return_kind.span()),
+            name.line,
+        ))
     }
 
     /// Analyzes a function definition and generates an annotated statement.
@@ -880,9 +959,9 @@ impl SemanticAnalyzer {
         let mut annotated_body = Vec::new();
 
         match body {
-            Statement::Scope(stmts) => {
+            Statement::Scope(stmts, span, line) => {
                 for stmt in stmts {
-                    let inner_stmts = self.analyze_stmt(stmt);
+                    let inner_stmts = self.analyze_stmt(stmt, span, line);
 
                     match inner_stmts {
                         Err(e) => self.report_error(e),
@@ -908,7 +987,13 @@ impl SemanticAnalyzer {
 
         Ok(AnnotatedStatement::Function(
             function_definition,
-            Box::new(AnnotatedStatement::Scope(annotated_body)),
+            Box::new(AnnotatedStatement::Scope(
+                annotated_body,
+                body.span(),
+                body.line(),
+            )),
+            name.span.merge(body.span()),
+            name.line,
         ))
     }
 
@@ -956,6 +1041,17 @@ impl SemanticAnalyzer {
 
             match value {
                 Some(v) => {
+                    if function_signature.return_kind.borrow().name == "void" {
+                        return Err(CompilationError::with_span(
+                            CompilationErrorKind::ExpectReturnType {
+                                expect: "void".into(),
+                                found: self.resolve_expr_type(v)?.borrow().name.clone(),
+                            },
+                            Some(v.line()),
+                            v.span(),
+                        ));
+                    }
+
                     let annotated_value = self.analyze_expr(v)?;
 
                     self.assert_archetype_kind(
@@ -968,21 +1064,25 @@ impl SemanticAnalyzer {
                         .as_str(),
                     )?;
 
-                    Ok(AnnotatedStatement::Return(Some(annotated_value)))
+                    Ok(AnnotatedStatement::Return(
+                        Some(annotated_value),
+                        keyword.span.merge(v.span()),
+                        keyword.line,
+                    ))
                 }
                 None => {
                     if function_signature.return_kind.borrow().name != "void" {
                         return Err(CompilationError::with_span(
                             CompilationErrorKind::ExpectReturnType {
-                                expect: function.clone(),
-                                found: function_signature.return_kind.borrow().name.clone(),
+                                expect: function_signature.return_kind.borrow().name.clone(),
+                                found: "void".into(),
                             },
                             Some(keyword.line),
                             keyword.span,
                         ));
                     }
 
-                    return Ok(AnnotatedStatement::Return(None));
+                    return Ok(AnnotatedStatement::Return(None, keyword.span, keyword.line));
                 }
             }
         } else {
@@ -995,7 +1095,7 @@ impl SemanticAnalyzer {
                         if let Ordering::Equal =
                             expected_return.borrow().name.cmp(&"void".to_string())
                         {
-                            Ok(AnnotatedStatement::Return(None))
+                            Ok(AnnotatedStatement::Return(None, keyword.span, keyword.line))
                         } else {
                             Err(CompilationError::with_span(
                                 CompilationErrorKind::UnexpectedReturnValue {
@@ -1019,7 +1119,11 @@ impl SemanticAnalyzer {
                                 v.span(),
                             ));
                         } else {
-                            Ok(AnnotatedStatement::Return(Some(self.analyze_expr(v)?)))
+                            Ok(AnnotatedStatement::Return(
+                                Some(self.analyze_expr(v)?),
+                                keyword.span.merge(v.span()),
+                                keyword.line,
+                            ))
                         }
                     }
                 }
@@ -1136,7 +1240,11 @@ impl SemanticAnalyzer {
 
         self.define_function(name.lexeme.clone(), constructor);
 
-        Ok(AnnotatedStatement::Type(type_descriptor))
+        Ok(AnnotatedStatement::Type(
+            type_descriptor,
+            name.span,
+            name.line,
+        ))
     }
 
     /// Analyzes a decorator and its associated attributes.
@@ -1184,27 +1292,33 @@ impl SemanticAnalyzer {
         }
 
         match next {
-            Statement::Function(_, _, _, _) => {
+            Statement::Function(_, _, _, _, span, line) => {
                 self.current_decorator = Decorator::new(attribute_usages);
                 return Ok(AnnotatedStatement::Decorator(
                     hash_token.clone(),
                     annotated_attributes,
+                    span,
+                    line,
                 ));
             }
 
-            Statement::NativeFunction(name, args, return_kind) => {
+            Statement::NativeFunction(name, args, return_kind, span, line) => {
                 self.current_decorator = Decorator::new(attribute_usages);
                 return Ok(AnnotatedStatement::Decorator(
                     hash_token.clone(),
                     annotated_attributes,
+                    span,
+                    line,
                 ));
             }
 
-            Statement::InternalDefinition(_, _, _, _) => {
+            Statement::InternalDefinition(_, _, _, _, span, line) => {
                 self.current_decorator = Decorator::new(attribute_usages);
                 return Ok(AnnotatedStatement::Decorator(
                     hash_token.clone(),
                     annotated_attributes,
+                    span,
+                    line,
                 ));
             }
 

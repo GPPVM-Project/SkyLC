@@ -152,6 +152,10 @@ impl TypeDescriptor {
             methods: HashMap::new(),
         }
     }
+
+    pub fn is_void(&self) -> bool {
+        return self.name == "void";
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]

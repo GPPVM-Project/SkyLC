@@ -168,6 +168,10 @@ pub enum CompilationErrorKind {
         kind: String,
         found: String,
     },
+    FunctionMayNotReturn {
+        function_kind: String,
+        name: String,
+    },
 }
 
 #[derive(Debug)]

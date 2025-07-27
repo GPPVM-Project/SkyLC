@@ -102,46 +102,50 @@ impl IRGenerator {
 
     fn generate_ir_for(&mut self, annotated_stmt: &AnnotatedStatement) -> Vec<u8> {
         match annotated_stmt {
-            AnnotatedStatement::Decorator(name, attributes) => {
+            AnnotatedStatement::Decorator(name, attributes, span, line) => {
                 vec![]
             }
             AnnotatedStatement::EndCode => {
                 vec![]
             }
-            AnnotatedStatement::Expression(expression) => {
+            AnnotatedStatement::Expression(expression, span, line) => {
                 let code = self.generate_expr_ir(expression);
                 code
             }
-            AnnotatedStatement::While(condition, body) => self.generate_while_ir(condition, body),
-            AnnotatedStatement::ForEach(variable, condition, body) => {
+            AnnotatedStatement::While(condition, body, span, line) => {
+                self.generate_while_ir(condition, body)
+            }
+            AnnotatedStatement::ForEach(variable, condition, body, span, line) => {
                 vec![]
             }
-            AnnotatedStatement::Function(prototype, body) => {
+            AnnotatedStatement::Function(prototype, body, span, line) => {
                 self.generate_function_ir(prototype, body)
             }
-            AnnotatedStatement::NativeFunction(prototype) => {
+            AnnotatedStatement::NativeFunction(prototype, span, line) => {
                 self.generate_native_function_ir(prototype)
             }
             AnnotatedStatement::Global => {
                 vec![]
             }
-            AnnotatedStatement::If(keyword, condition, then_branch, else_branch) => {
+            AnnotatedStatement::If(keyword, condition, then_branch, else_branch, span, line) => {
                 self.generate_if_else(keyword, condition, then_branch, else_branch)
             }
-            AnnotatedStatement::Return(value) => self.generate_return_ir(value),
-            AnnotatedStatement::Scope(statements) => self.generate_scope_ir(statements),
-            AnnotatedStatement::Type(descriptor) => self.generate_type_ir(&descriptor.borrow()),
-            AnnotatedStatement::Variable(name, value) => {
+            AnnotatedStatement::Return(value, span, line) => self.generate_return_ir(value),
+            AnnotatedStatement::Scope(statements, span, line) => self.generate_scope_ir(statements),
+            AnnotatedStatement::Type(descriptor, span, line) => {
+                self.generate_type_ir(&descriptor.borrow())
+            }
+            AnnotatedStatement::Variable(name, value, span, line) => {
                 self.generate_variable_decl_ir(name, value)
             }
-            AnnotatedStatement::While(condition, body) => {
+            AnnotatedStatement::While(condition, body, span, line) => {
                 vec![]
             }
-            AnnotatedStatement::BuiltinAttribute(name, kinds) => {
+            AnnotatedStatement::BuiltinAttribute(name, kinds, span, line) => {
                 // println!("Attribute: {}", name.lexeme);
                 vec![]
             }
-            AnnotatedStatement::InternalDefinition(target, definition, body) => {
+            AnnotatedStatement::InternalDefinition(target, definition, body, span, line) => {
                 self.generate_internal_definition_ir(&target.borrow(), definition, body)
             }
         }
@@ -150,13 +154,13 @@ impl IRGenerator {
     fn is_valid_ir_statement(&self, statement: &AnnotatedStatement) -> bool {
         matches!(
             statement,
-            AnnotatedStatement::Expression(_)
-                | AnnotatedStatement::If(_, _, _, _)
-                | AnnotatedStatement::ForEach(_, _, _)
-                | AnnotatedStatement::Return(_)
-                | AnnotatedStatement::Scope(_)
-                | AnnotatedStatement::While(_, _)
-                | AnnotatedStatement::Variable(_, _)
+            AnnotatedStatement::Expression(_, _, _)
+                | AnnotatedStatement::If(_, _, _, _, _, _)
+                | AnnotatedStatement::ForEach(_, _, _, _, _)
+                | AnnotatedStatement::Return(_, _, _)
+                | AnnotatedStatement::Scope(_, _, _)
+                | AnnotatedStatement::While(_, _, _, _)
+                | AnnotatedStatement::Variable(_, _, _, _)
         )
     }
 
@@ -174,7 +178,7 @@ impl IRGenerator {
             self.declare_local(param.name.lexeme.clone(), true);
         }
 
-        if let AnnotatedStatement::Scope(stmts) = body {
+        if let AnnotatedStatement::Scope(stmts, _, _) = body {
             for stmt in stmts {
                 let stmt_code = self.generate_ir_for(stmt);
 
@@ -863,7 +867,7 @@ impl IRGenerator {
             self.declare_local(param.name.lexeme.clone(), true);
         }
 
-        if let AnnotatedStatement::Scope(stmts) = body {
+        if let AnnotatedStatement::Scope(stmts, _, _) = body {
             for stmt in stmts {
                 let stmt_code = self.generate_ir_for(stmt);
                 for byte in stmt_code {

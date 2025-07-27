@@ -81,6 +81,7 @@ impl Parser {
     }
 
     fn parse_internal_function(&mut self) -> Result<Statement, ParseError> {
+        let start_token = self.previous();
         self.eat(
             TokenKind::Keyword(KeywordKind::Def),
             CompilationErrorKind::ExpectedToken {
@@ -186,12 +187,15 @@ impl Parser {
         )?;
 
         let body = self.parse_scope()?;
+        let end_span = body.span();
 
         Ok(Statement::InternalDefinition(
             function_name,
             params,
             Rc::new(body),
             return_kind,
+            start_token.span.merge(end_span),
+            start_token.line,
         ))
     }
 
@@ -222,6 +226,7 @@ impl Parser {
     }
 
     fn builtin_attribute(&mut self) -> Result<Statement, ParseError> {
+        let start_token = self.previous();
         let name = self.eat(
             TokenKind::Identifier,
             CompilationErrorKind::ExpectedToken {
@@ -261,16 +266,24 @@ impl Parser {
             )?;
         }
 
-        self.expect_token(
-            TokenKind::Punctuation(PunctuationKind::SemiColon),
-            "';'",
-            "attribute declaration",
-        )?;
+        let end_span = self
+            .expect_token(
+                TokenKind::Punctuation(PunctuationKind::SemiColon),
+                "';'",
+                "attribute declaration",
+            )?
+            .span;
 
-        Ok(Statement::BuiltinAttribute(name, kinds))
+        Ok(Statement::BuiltinAttribute(
+            name,
+            kinds,
+            end_span.merge(start_token.span),
+            start_token.line,
+        ))
     }
 
     fn native_type(&mut self) -> Result<Statement, ParseError> {
+        let start_token = self.previous();
         let type_name = self.expect_token(TokenKind::Identifier, "type name", "'type' keyword")?;
 
         let mut archetypes: Vec<Token> = Vec::new();
@@ -343,16 +356,25 @@ impl Parser {
             }
         }
 
-        self.expect_token(
-            TokenKind::Punctuation(PunctuationKind::RightBrace),
-            "'}'",
-            "type fields",
-        )?;
+        let end_span = self
+            .expect_token(
+                TokenKind::Punctuation(PunctuationKind::RightBrace),
+                "'}'",
+                "type fields",
+            )?
+            .span;
 
-        Ok(Statement::Type(type_name, archetypes, fields))
+        Ok(Statement::Type(
+            type_name,
+            archetypes,
+            fields,
+            end_span.merge(start_token.span),
+            start_token.line,
+        ))
     }
 
     fn native_function(&mut self) -> Result<Statement, ParseError> {
+        let start_token = self.previous();
         let function_name = self.expect_token(TokenKind::Identifier, "function name", "'def'")?;
 
         self.expect_token(
@@ -424,20 +446,25 @@ impl Parser {
 
         return_kind = self.type_composition()?;
 
-        self.expect_token(
-            TokenKind::Punctuation(PunctuationKind::SemiColon),
-            "';'",
-            "return kind",
-        )?;
+        let end_span = self
+            .expect_token(
+                TokenKind::Punctuation(PunctuationKind::SemiColon),
+                "';'",
+                "return kind",
+            )?
+            .span;
 
         Ok(Statement::NativeFunction(
             function_name,
             params,
             return_kind,
+            end_span.merge(start_token.span),
+            start_token.line,
         ))
     }
 
     fn decorator_declaration(&mut self) -> Result<Statement, ParseError> {
+        let start_token = self.previous();
         let hash_token = self.previous();
 
         self.expect_token(
@@ -456,13 +483,20 @@ impl Parser {
             decorators.push(decorator);
         }
 
-        self.expect_token(
-            TokenKind::Punctuation(PunctuationKind::RightBracket),
-            "']'",
-            "attributes",
-        )?;
+        let end_span = self
+            .expect_token(
+                TokenKind::Punctuation(PunctuationKind::RightBracket),
+                "']'",
+                "attributes",
+            )?
+            .span;
 
-        Ok(Statement::Decorator(hash_token, decorators))
+        Ok(Statement::Decorator(
+            hash_token,
+            decorators,
+            end_span.merge(start_token.span),
+            start_token.line,
+        ))
     }
 
     fn parse_decorator(&mut self) -> Result<Expression, ParseError> {
@@ -505,6 +539,7 @@ impl Parser {
     }
 
     fn function_declaration(&mut self) -> Result<Statement, ParseError> {
+        let start_token = self.previous();
         let function_name = self.expect_token(TokenKind::Identifier, "function name", "'def'")?;
 
         self.expect_token(
@@ -583,12 +618,15 @@ impl Parser {
         )?;
 
         let body = self.parse_scope()?;
+        let end_span = body.span();
 
         Ok(Statement::Function(
             function_name,
             params,
             Rc::new(body),
             return_kind,
+            end_span.merge(start_token.span),
+            start_token.line,
         ))
     }
 
@@ -626,6 +664,7 @@ impl Parser {
     }
 
     fn type_declaration(&mut self) -> Result<Statement, ParseError> {
+        let start_token = self.previous();
         let type_name = self.expect_token(TokenKind::Identifier, "type name", "'type' keyword")?;
 
         let mut archetypes: Vec<Token> = Vec::new();
@@ -698,13 +737,21 @@ impl Parser {
             }
         }
 
-        self.expect_token(
-            TokenKind::Punctuation(PunctuationKind::RightBrace),
-            "'}'",
-            "type fields",
-        )?;
+        let end_span = self
+            .expect_token(
+                TokenKind::Punctuation(PunctuationKind::RightBrace),
+                "'}'",
+                "type fields",
+            )?
+            .span;
 
-        Ok(Statement::Type(type_name, archetypes, fields))
+        Ok(Statement::Type(
+            type_name,
+            archetypes,
+            fields,
+            end_span.merge(start_token.span),
+            start_token.line,
+        ))
     }
 
     fn statement(&mut self) -> Result<Statement, ParseError> {
@@ -739,120 +786,135 @@ impl Parser {
     }
 
     fn for_statement(&mut self) -> Result<Statement, ParseError> {
+        let start_token = self.previous();
+
         let variable_name = self.eat(
             TokenKind::Identifier,
             CompilationErrorKind::ExpectedToken {
-                expect: format!("identifier"),
-                found: format!("{}", self.peek().lexeme),
-                after: Some(format!("'for' keyword")),
+                expect: "identifier".into(),
+                found: self.peek().lexeme.clone(),
+                after: Some("'for' keyword".into()),
             },
         )?;
 
         self.eat(
             TokenKind::Keyword(KeywordKind::In),
             CompilationErrorKind::ExpectedToken {
-                expect: format!("'in'"),
-                found: format!("{}", self.peek().lexeme),
-                after: Some(format!("variable name")),
+                expect: "'in'".into(),
+                found: self.peek().lexeme.clone(),
+                after: Some("variable name".into()),
             },
         )?;
 
-        let iterator = self.expression()?;
+        let iterator_expr = self.expression()?;
+        self.expect_token(
+            TokenKind::Punctuation(PunctuationKind::LeftBrace),
+            "'{'",
+            "iterator expression",
+        )?;
+
+        let scope = self.parse_scope()?;
+
+        if let Statement::Scope(stmts, _, _) = &scope {
+            if stmts.is_empty() {
+                return Ok(scope);
+            }
+        }
+
+        let full_loop_span = start_token.span.merge(scope.span());
+
         let iterator_variable_name = Token::new(
             TokenKind::Identifier,
-            format!("${}", variable_name),
+            format!("${}", variable_name.lexeme),
             variable_name.line,
             variable_name.column,
             variable_name.span,
         );
-
-        let iterator_variable = Statement::Variable(iterator_variable_name.clone(), Some(iterator));
-
-        let paren = Token::new(
-            TokenKind::Punctuation(PunctuationKind::RightParen),
-            ")".into(),
-            self.previous().line,
-            self.previous().column,
-            self.previous().span,
+        let iterator_variable = Statement::Variable(
+            iterator_variable_name.clone(),
+            Some(iterator_expr.clone()),
+            iterator_expr.span(),
+            start_token.line,
         );
 
-        self.eat(
-            TokenKind::Punctuation(PunctuationKind::LeftBrace),
-            CompilationErrorKind::ExpectedToken {
-                expect: format!("'{{'"),
-                found: format!("{}", self.peek().lexeme),
-                after: Some(format!("iterator")),
-            },
-        )?;
-
-        let has_next = Token::new(
-            TokenKind::Identifier,
-            "has_next".into(),
-            self.previous().line,
-            self.previous().column,
-            self.previous().span,
-        );
-        let next = Token::new(
-            TokenKind::Identifier,
-            "next".into(),
-            self.previous().line,
-            self.previous().column,
-            self.previous().span,
+        let user_variable = Statement::Variable(
+            variable_name.clone(),
+            None,
+            variable_name.span,
+            variable_name.line,
         );
 
-        let scope = self.parse_scope()?;
+        let paren = Token::new_synthetic(")");
+        let has_next_token = Token::new_synthetic("has_next");
+        let next_token = Token::new_synthetic("next");
 
-        if let Statement::Scope(stmts) = &scope {
-            if stmts.is_empty() {
-                return Ok(Statement::EndCode);
-            }
-        }
+        let iterator_var_expr = || {
+            Rc::new(Expression::Variable(
+                iterator_variable_name.clone(),
+                iterator_variable_name.span,
+            ))
+        };
 
-        let for_body = Statement::Scope(vec![
-            Rc::new(Statement::Expression(Expression::Assign(
-                variable_name.clone(),
-                Rc::new(Expression::Call(
-                    Rc::new(Expression::Get(
-                        Rc::new(Expression::Variable(
-                            iterator_variable_name.clone(),
-                            iterator_variable_name.span,
-                        )),
-                        next,
-                        iterator_variable_name.span,
-                    )),
-                    paren.clone(),
-                    Vec::new(),
-                    iterator_variable_name.span,
-                )),
-                variable_name.span,
-            ))),
-            Rc::new(scope),
-        ]);
-
-        Ok(Statement::Scope(vec![
-            Rc::new(iterator_variable),
-            Rc::new(Statement::Variable(variable_name.clone(), None)),
-            Rc::new(Statement::While(
-                Expression::Call(
-                    Rc::new(Expression::Get(
-                        Rc::new(Expression::Variable(
-                            iterator_variable_name.clone(),
-                            iterator_variable_name.span,
-                        )),
-                        has_next,
-                        iterator_variable_name.span,
-                    )),
-                    paren,
-                    Vec::new(),
-                    iterator_variable_name.span,
-                ),
-                Box::new(for_body),
+        let while_condition = Expression::Call(
+            Rc::new(Expression::Get(
+                iterator_var_expr(),
+                has_next_token,
+                iterator_variable_name.span,
             )),
-        ]))
+            paren.clone(),
+            Vec::new(),
+            iterator_variable_name.span,
+        );
+
+        let next_call = Expression::Call(
+            Rc::new(Expression::Get(
+                iterator_var_expr(),
+                next_token,
+                iterator_variable_name.span,
+            )),
+            paren,
+            Vec::new(),
+            iterator_variable_name.span,
+        );
+        let assignment_expr = Expression::Assign(
+            variable_name.clone(),
+            Rc::new(next_call),
+            variable_name.span.merge(iterator_variable_name.span),
+        );
+        let assignment_stmt = Statement::Expression(
+            assignment_expr.clone(),
+            assignment_expr.span(),
+            assignment_expr.line(),
+        );
+
+        let while_body = Statement::Scope(
+            vec![Rc::new(assignment_stmt), Rc::new(scope.clone())],
+            scope.span(),
+            scope.line(),
+        );
+
+        let while_stmt = Statement::While(
+            while_condition,
+            Box::new(while_body),
+            scope.span(),
+            scope.line(),
+        );
+
+        Ok(Statement::Scope(
+            vec![
+                Rc::new(iterator_variable),
+                Rc::new(user_variable),
+                Rc::new(while_stmt),
+            ],
+            full_loop_span,
+            scope.line(),
+        ))
     }
 
     fn import_statement(&mut self) -> Result<Statement, ParseError> {
         let root = self.expect_token(TokenKind::Identifier, "module name", "'import' keyword")?;
+        let start_token = root.clone();
+        let start_span = root.span;
 
         let mut path: Vec<Token> = Vec::new();
         path.push(root);
@@ -862,16 +924,23 @@ impl Parser {
             path.push(part);
         }
 
-        self.expect_token(
-            TokenKind::Punctuation(PunctuationKind::SemiColon),
-            "';'",
-            "module import",
-        )?;
+        let end_span = self
+            .expect_token(
+                TokenKind::Punctuation(PunctuationKind::SemiColon),
+                "';'",
+                "module import",
+            )?
+            .span;
 
-        Ok(Statement::Import(path))
+        Ok(Statement::Import(
+            path,
+            start_span.merge(end_span),
+            start_token.line,
+        ))
     }
 
     fn variable_declaration(&mut self) -> Result<Statement, ParseError> {
+        let start_token = self.previous();
         if self.try_eat(&[TokenKind::Punctuation(PunctuationKind::LeftBrace)]) {
             return self.parse_destructure_variables();
         }
@@ -884,16 +953,25 @@ impl Parser {
             value = Some(self.expression()?);
         }
 
-        self.expect_token(
-            TokenKind::Punctuation(PunctuationKind::SemiColon),
-            "';'",
-            "variable declaration",
-        )?;
+        let end_span = self
+            .expect_token(
+                TokenKind::Punctuation(PunctuationKind::SemiColon),
+                "';'",
+                "variable declaration",
+            )?
+            .span;
 
-        Ok(Statement::Variable(name, value))
+        Ok(Statement::Variable(
+            name,
+            value,
+            start_token.span.merge(end_span),
+            start_token.line,
+        ))
     }
 
     fn while_statement(&mut self) -> Result<Statement, ParseError> {
+        let start_token = self.previous();
+
         let condition = self.expression()?;
         self.expect_token(
             TokenKind::Punctuation(PunctuationKind::LeftBrace),
@@ -902,12 +980,21 @@ impl Parser {
         )?;
 
         let body = self.parse_scope()?;
+        let end_span = body.span();
 
-        Ok(Statement::While(condition, Box::new(body)))
+        Ok(Statement::While(
+            condition,
+            Box::new(body),
+            start_token.span.merge(end_span),
+            start_token.line,
+        ))
     }
 
     fn if_statement(&mut self) -> Result<Statement, ParseError> {
         let keyword = self.previous();
+        let start_token = keyword.clone();
+        let start_span = keyword.span;
+
         let condition = self.expression()?;
         self.expect_token(
             TokenKind::Punctuation(PunctuationKind::LeftBrace),
@@ -916,34 +1003,53 @@ impl Parser {
         )?;
 
         let then_branch = self.parse_scope()?;
+        let mut end_span = then_branch.span();
 
         let mut else_branch: Option<Box<Statement>> = None;
 
         if self.try_eat(&[TokenKind::Keyword(KeywordKind::Else)]) {
-            else_branch = Some(Box::new(self.statement()?));
+            let else_stmt = self.statement()?;
+            end_span = else_stmt.span();
+            else_branch = Some(Box::new(else_stmt));
         }
+
+        let combined_span = start_span.merge(end_span);
 
         Ok(Statement::If(
             keyword,
             condition,
             Box::new(then_branch),
             else_branch,
+            combined_span,
+            start_token.line,
         ))
     }
 
     fn expression_statement(&mut self) -> Result<Statement, ParseError> {
+        let start_token = self.peek();
+
         let expr = self.expression()?;
+        let start_span = expr.span();
 
-        self.expect_token(
-            TokenKind::Punctuation(PunctuationKind::SemiColon),
-            "';'",
-            "expression",
-        )?;
+        let end_span = self
+            .expect_token(
+                TokenKind::Punctuation(PunctuationKind::SemiColon),
+                "';'",
+                "expression",
+            )?
+            .span;
 
-        Ok(Statement::Expression(expr))
+        Ok(Statement::Expression(
+            expr,
+            start_span.merge(end_span),
+            start_token.line,
+        ))
     }
 
     fn parse_scope(&mut self) -> Result<Statement, ParseError> {
+        let start_token = self.previous();
+        let start_span = start_token.span;
+
         let mut statements = Vec::<Rc<Statement>>::new();
 
         while !self.check(&[TokenKind::Punctuation(PunctuationKind::RightBrace)])
@@ -958,13 +1064,19 @@ impl Parser {
             }
         }
 
-        self.expect_token(
-            TokenKind::Punctuation(PunctuationKind::RightBrace),
-            "'}'",
-            "scope statements",
-        )?;
+        let end_span = self
+            .expect_token(
+                TokenKind::Punctuation(PunctuationKind::RightBrace),
+                "'}'",
+                "scope statements",
+            )?
+            .span;
 
-        Ok(Statement::Scope(statements))
+        Ok(Statement::Scope(
+            statements,
+            start_span.merge(end_span),
+            start_token.line,
+        ))
     }
 
     fn expression(&mut self) -> Result<Expression, ParseError> {
@@ -1423,12 +1535,27 @@ impl Parser {
 
     fn return_statement(&mut self) -> Result<Statement, ParseError> {
         let keyword = self.previous();
+        let start_token = keyword.clone();
+        let start_span = start_token.span;
 
         if self.try_eat(&[TokenKind::Punctuation(PunctuationKind::SemiColon)]) {
-            return Ok(Statement::Return(keyword, None));
+            return Ok(Statement::Return(
+                keyword,
+                None,
+                start_span.merge(self.previous().span),
+                start_token.line,
+            ));
         }
 
-        let value = Statement::Return(keyword, Some(self.expression()?));
+        let value = self.expression()?;
+        let end_span = value.span();
+
+        let return_stmt = Statement::Return(
+            keyword,
+            Some(value),
+            start_span.merge(end_span),
+            start_token.line,
+        );
 
         self.expect_token(
             TokenKind::Punctuation(PunctuationKind::SemiColon),
@@ -1436,7 +1563,7 @@ impl Parser {
             "return value",
         )?;
 
-        Ok(value)
+        Ok(return_stmt)
     }
 
     fn synchronize(&mut self) {
@@ -1480,6 +1607,8 @@ impl Parser {
 
     fn parse_destructure_variables(&mut self) -> Result<Statement, ParseError> {
         let mut names: Vec<Token> = Vec::new();
+        let start_token = self.previous();
+        let start_span = start_token.span;
 
         let first = self.expect_token(TokenKind::Identifier, "'{'", "destructure declaration")?;
 
@@ -1504,12 +1633,19 @@ impl Parser {
 
         let value = self.expression()?;
 
-        self.expect_token(
-            TokenKind::Punctuation(PunctuationKind::SemiColon),
-            "';'",
-            "destructure declaration value",
-        )?;
+        let end_span = self
+            .expect_token(
+                TokenKind::Punctuation(PunctuationKind::SemiColon),
+                "';'",
+                "destructure declaration value",
+            )?
+            .span;
 
-        return Ok(Statement::DestructurePattern(names, value));
+        return Ok(Statement::DestructurePattern(
+            names,
+            value,
+            start_span.merge(end_span),
+            start_token.line,
+        ));
     }
 }

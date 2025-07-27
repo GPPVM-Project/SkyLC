@@ -5,23 +5,28 @@ use skyl_data::SourceFile;
 use crate::errors::{CompilationError, CompilationErrorKind};
 
 pub fn format_err(error: &CompilationError, file: &SourceFile) -> String {
+    match &error.kind {
+        CompilationErrorKind::FunctionMayNotReturn { .. } => {
+            format_function_may_not_return(error, file)
+        }
+        _ => format_generic_error(error, file),
+    }
+}
+
+fn format_function_may_not_return(error: &CompilationError, file: &SourceFile) -> String {
     let mut output = String::new();
 
-    if let (Some(span), Some(line)) = (error.span, error.line) {
+    if let Some(span) = error.span {
         let lines: Vec<&str> = file.content.lines().collect();
-        let line_idx = line - 1;
-        let source_line = lines.get(line_idx).unwrap_or(&"");
-
-        // let content_before = &file.content[0..20];
-        let content_before = &file.content[..span.start];
-        let last_line_start = content_before.rfind('\n').map(|pos| pos + 1).unwrap_or(0);
-        let col_start = span.start - last_line_start;
-        let underline_len = span.end.saturating_sub(span.start).max(1);
-
         let max_line_digits = lines.len().to_string().len();
         let line_number_pad = max_line_digits.max(2);
 
+        let content_before_end = &file.content[..span.end];
+        let end_line_num = content_before_end.matches('\n').count() + 1;
+        let end_col = (span.end - 1) - content_before_end.rfind('\n').map_or(0, |p| p + 1);
+
         output += &format!("\x1b[31mError\x1b[0m: {}\n", stringify_error(error));
+
         let relative_path = file
             .path
             .strip_prefix(std::env::current_dir().unwrap_or_else(|_| Path::new(".").to_path_buf()))
@@ -31,49 +36,160 @@ pub fn format_err(error: &CompilationError, file: &SourceFile) -> String {
             " {arrow:>width$} {file}:{line}:{col}\n",
             arrow = "-->",
             file = relative_path.display(),
-            line = line,
-            col = col_start + 1,
+            line = end_line_num,
+            col = end_col + 1,
             width = line_number_pad + 1
         );
+
         output += &format!(
             " \x1b[34m{bar:>width$}\x1b[0m\n",
             bar = "|",
             width = line_number_pad + 1
         );
+
+        let source_line = lines.get(end_line_num - 1).unwrap_or(&"");
         output += &format!(
             "\x1b[34m{line_number:>width$}\x1b[0m \x1b[34m|\x1b[0m {line_content}\n",
-            line_number = line,
+            line_number = end_line_num,
             line_content = source_line,
             width = line_number_pad
         );
+
         output += &format!(
-            " \x1b[34m{bar:>width$}\x1b[0m ",
+            " \x1b[34m{bar:>width$}\x1b[0m \x1b[31m{marker:>offset$}^\x1b[0m\n",
             bar = "|",
-            width = line_number_pad + 1
-        );
-        output += &format!(
-            "\x1b[31m{marker:>offset$}{carets}\x1b[0m\n",
+            width = line_number_pad + 1,
             marker = "",
-            offset = col_start,
-            carets = "^".repeat(underline_len)
+            offset = end_col
         );
+
         output += &format!(
             " \x1b[34m{bar:>width$}\x1b[0m\n",
             bar = "|",
             width = line_number_pad + 1
         );
+
+        let hint = "Consider adding a return statement before this closing brace".to_string();
         output += &format!(
             "\x1b[34m{bar:>width$}\x1b[0m \x1b[92mHint:\x1b[0m {hint}.\n",
             bar = "╰─",
             width = line_number_pad + 3,
-            hint = hintify_error(&error)
+            hint = hint
+        );
+    } else {
+        output += &format!("\x1b[31mError\x1b[0m: {}.\n", stringify_error(error));
+    }
+
+    output
+}
+
+fn format_generic_error(error: &CompilationError, file: &SourceFile) -> String {
+    let mut output = String::new();
+
+    if let (Some(span), Some(start_line_num)) = (error.span, error.line) {
+        let lines: Vec<&str> = file.content.lines().collect();
+        let max_line_digits = lines.len().to_string().len();
+        let line_number_pad = max_line_digits.max(2);
+
+        output += &format!("\x1b[31mError\x1b[0m: {}\n", stringify_error(error));
+
+        let relative_path = file
+            .path
+            .strip_prefix(std::env::current_dir().unwrap_or_else(|_| Path::new(".").to_path_buf()))
+            .unwrap_or_else(|_| file.path.as_path());
+
+        let content_before_start = &file.content[..span.start];
+        let start_col = span.start - content_before_start.rfind('\n').map_or(0, |p| p + 1);
+
+        let content_before_end = &file.content[..span.end];
+        let end_line_num = content_before_end.matches('\n').count() + 1;
+        let end_col = span.end - content_before_end.rfind('\n').map_or(0, |p| p + 1);
+
+        output += &format!(
+            " {arrow:>width$} {file}:{line}:{col}\n",
+            arrow = "-->",
+            file = relative_path.display(),
+            line = start_line_num,
+            col = start_col + 1,
+            width = line_number_pad + 1
         );
 
-        let notes = notefy_error(error);
-        let note_count = notes.len();
+        output += &format!(
+            " \x1b[34m{bar:>width$}\x1b[0m\n",
+            bar = "|",
+            width = line_number_pad + 1
+        );
 
-        for i in 0..note_count {
-            let note_bar = if i == note_count - 1 {
+        if start_line_num == end_line_num {
+            let source_line = lines.get(start_line_num - 1).unwrap_or(&"");
+            let underline_len = span.end.saturating_sub(span.start).max(1);
+
+            output += &format!(
+                "\x1b[34m{line_number:>width$}\x1b[0m \x1b[34m|\x1b[0m {line_content}\n",
+                line_number = start_line_num,
+                line_content = source_line,
+                width = line_number_pad
+            );
+            output += &format!(
+                " \x1b[34m{bar:>width$}\x1b[0m \x1b[31m{marker:>offset$}{carets}\x1b[0m\n",
+                bar = "|",
+                width = line_number_pad + 1,
+                marker = "",
+                offset = start_col,
+                carets = "^".repeat(underline_len)
+            );
+        } else {
+            for i in start_line_num..=end_line_num {
+                let line_idx = i - 1;
+                let line_content = lines.get(line_idx).unwrap_or(&"");
+
+                output += &format!(
+                    "\x1b[34m{line_number:>width$}\x1b[0m \x1b[34m|\x1b[0m {line_content}\n",
+                    line_number = i,
+                    line_content = line_content,
+                    width = line_number_pad
+                );
+
+                let (offset, underline_len) = if i == start_line_num {
+                    (start_col, line_content.len().saturating_sub(start_col))
+                } else if i == end_line_num {
+                    (0, end_col)
+                } else {
+                    (0, line_content.len())
+                };
+
+                if underline_len > 0 {
+                    output += &format!(
+                        " \x1b[34m{bar:>width$}\x1b[0m \x1b[31m{marker:>offset$}{carets}\x1b[0m\n",
+                        bar = "|",
+                        width = line_number_pad + 1,
+                        marker = "",
+                        offset = offset,
+                        carets = "^".repeat(underline_len)
+                    );
+                }
+            }
+        }
+
+        output += &format!(
+            " \x1b[34m{bar:>width$}\x1b[0m\n",
+            bar = "|",
+            width = line_number_pad + 1
+        );
+
+        let hint = hintify_error(error);
+        if !hint.is_empty() {
+            output += &format!(
+                "\x1b[34m{bar:>width$}\x1b[0m \x1b[92mHint:\x1b[0m {hint}.\n",
+                bar = "╰─",
+                width = line_number_pad + 3,
+                hint = hint
+            );
+        }
+
+        let notes = notefy_error(error);
+        for (i, note) in notes.iter().enumerate() {
+            let note_bar = if i == notes.len() - 1 {
                 "└─"
             } else {
                 "├─"
@@ -82,7 +198,7 @@ pub fn format_err(error: &CompilationError, file: &SourceFile) -> String {
                 "\x1b[34m{bar:>width$}\x1b[0m \x1b[93mNote:\x1b[0m {hint}.\n",
                 bar = note_bar,
                 width = line_number_pad + 6,
-                hint = notes[i]
+                hint = note
             );
         }
     } else if let Some(line) = error.line {
@@ -101,7 +217,7 @@ pub fn format_err(error: &CompilationError, file: &SourceFile) -> String {
 fn notefy_error(error: &CompilationError) -> Vec<String> {
     match &error.kind {
         CompilationErrorKind::IllegalCharacter(_) => vec![format!("For Skyl constructions, use ASCII characters and valid symbols, other characters can be used inside strings"),
-                                            format!("For more informations consult the Skyl documentation")],
+                                                format!("For more informations consult the Skyl documentation")],
         CompilationErrorKind::InvalidNativeDeclaration => todo!(),
         CompilationErrorKind::InvalidBuiltinDeclaration => todo!(),
         CompilationErrorKind::InvalidKeyword { keyword } => todo!(),
@@ -109,10 +225,10 @@ fn notefy_error(error: &CompilationError) -> Vec<String> {
         CompilationErrorKind::ArgumentLimitOverflow => todo!(),
         CompilationErrorKind::UnexpectedToken { token } => vec![],
         CompilationErrorKind::ExpectedToken {
-                                                expect,
-                                                found,
-                                                after,
-                                            } => vec![],
+                                                    expect,
+                                                    found,
+                                                    after,
+                                                } => vec![],
         CompilationErrorKind::ExpectedConstruction { expect, found } => todo!(),
         CompilationErrorKind::MissingMainFunction => todo!(),
         CompilationErrorKind::DuplicatedVariable { name, previous } => todo!(),
@@ -124,10 +240,10 @@ fn notefy_error(error: &CompilationError) -> Vec<String> {
         CompilationErrorKind::DepthError { msg } => vec![],
         CompilationErrorKind::InvalidStatementUsage { error } => vec![],
         CompilationErrorKind::ExpectType {
-                                                expect,
-                                                found,
-                                                compiler_msg,
-                                            } => vec![],
+                                                    expect,
+                                                    found,
+                                                    compiler_msg,
+                                                } => vec![],
         CompilationErrorKind::ExpectReturnType { expect, found } => vec![],
         CompilationErrorKind::UnexpectedReturnValue { found } => todo!(),
         CompilationErrorKind::TypeAssertion { msg } => todo!(),
@@ -138,10 +254,10 @@ fn notefy_error(error: &CompilationError) -> Vec<String> {
         CompilationErrorKind::ModuleNotFound { path } => vec![],
         CompilationErrorKind::ModuleAccessDenied { path, full_path } => todo!(),
         CompilationErrorKind::ModuleReadError {
-                                                path,
-                                                full_path,
-                                                error,
-                                            } => todo!(),
+                                                    path,
+                                                    full_path,
+                                                    error,
+                                                } => todo!(),
         CompilationErrorKind::UnsupportedFeature { feature } => vec![],
         CompilationErrorKind::InvalidLiteral { line } => todo!(),
         CompilationErrorKind::InvalidPostfixOperatorUsage { msg } => todo!(),
@@ -155,27 +271,28 @@ fn notefy_error(error: &CompilationError) -> Vec<String> {
         CompilationErrorKind::MismatchAttrbuteArgument { arg, accepted } => vec![],
         CompilationErrorKind::InvalidConstantEvaluation(_) => todo!(),
         CompilationErrorKind::OperatorOverloadNotFound { this, other, operator } => {
-                        vec![format!("#[coersion(op)]"), format!("def overload_name(self: {}, other: {}) -> SomeKind", this, other)]
-                },
+                            vec![format!("#[coersion(op)]"), format!("def overload_name(self: {}, other: {}) -> SomeKind", this, other)]
+                    },
         CompilationErrorKind::DuplicatedDefinition { kind, definition, target } => vec![],
         CompilationErrorKind::SymbolNotFound { symbol_kind, symbol_name } => vec![],
         CompilationErrorKind::MismatchArgumentCount { expected, found, function_name } => vec![],
-CompilationErrorKind::AssignTypeError { kind, found } => vec![],
+        CompilationErrorKind::AssignTypeError { kind, found } => vec![],
+        CompilationErrorKind::FunctionMayNotReturn { function_kind, name } => vec![],
     }
 }
 
 fn hintify_error(err: &CompilationError) -> String {
     match &err.kind {
         CompilationErrorKind::SymbolNotFound {
-                        symbol_kind,
-                        symbol_name,
-            } => format!(
-                "Consider to creating a `{}` {} declaration",
-                symbol_name, symbol_kind
-            ),
+                            symbol_kind,
+                            symbol_name,
+                } => format!(
+                    "Consider to creating a `{}` {} declaration",
+                    symbol_name, symbol_kind
+                ),
         CompilationErrorKind::IllegalCharacter(c) => {
-                format!("Consider removing '{c}' from source code")
-            }
+                    format!("Consider removing '{c}' from source code")
+                }
         CompilationErrorKind::InvalidNativeDeclaration => format_invalid_native_declaration(),
         CompilationErrorKind::UnsupportedFeature { feature } => format_unsupported_feature(feature),
         CompilationErrorKind::InvalidBuiltinDeclaration => todo!(),
@@ -184,102 +301,103 @@ fn hintify_error(err: &CompilationError) -> String {
         CompilationErrorKind::ArgumentLimitOverflow => todo!(),
         CompilationErrorKind::UnexpectedToken { token } => format!("Consider removing this token"),
         CompilationErrorKind::ExpectedToken {
-                expect,
-                found,
-                after,
-            } => hint_expected_token(expect, found, after),
+                    expect,
+                    found,
+                    after,
+                } => hint_expected_token(expect, found, after),
         CompilationErrorKind::ExpectedConstruction { expect, found } => {
-                format_expected_construction(expect, found)
-            }
+                    format_expected_construction(expect, found)
+                }
         CompilationErrorKind::MissingMainFunction => todo!(),
         CompilationErrorKind::DuplicatedVariable { name, previous } => {
-                format_duplicated_variable(name, previous)
-            }
+                    format_duplicated_variable(name, previous)
+                }
         CompilationErrorKind::UsingVoidToAssignVariableOrParam => todo!(),
         CompilationErrorKind::DuplicatedTypeDefinition { r#type } => todo!(),
         CompilationErrorKind::DuplicatedField { field } => format_duplicated_field(field),
         CompilationErrorKind::MissingConstruction { construction } => todo!(),
         CompilationErrorKind::InvalidStatementScope { statement } => todo!(),
         CompilationErrorKind::DepthError { msg } => {
-                format!("Move the declaration to other scope level.")
-            }
+                    format!("Move the declaration to other scope level.")
+                }
         CompilationErrorKind::InvalidStatementUsage { error } => {
-                format!("Consider removing the statement")
-            }
+                    format!("Consider removing the statement")
+                }
         CompilationErrorKind::ExpectType {
-                expect,
-                found,
-                compiler_msg,
-            } => format_expect_type(expect, found, compiler_msg),
+                    expect,
+                    found,
+                    compiler_msg,
+                } => format_expect_type(expect, found, compiler_msg),
         CompilationErrorKind::ExpectReturnType { expect, found } => {
-                format!("Consider change the return type of the function or returned value")
-            }
+                    format!("Consider change the return type of the function or returned value")
+                }
         CompilationErrorKind::UnexpectedReturnValue { found } => todo!(),
         CompilationErrorKind::TypeAssertion { msg } => todo!(),
         CompilationErrorKind::UsageOfNotRequiredStatement { statement, place } => todo!(),
         CompilationErrorKind::DuplicatedNativeFunction { name } => todo!(),
         CompilationErrorKind::NotFoundType { name } => todo!(),
         CompilationErrorKind::NotFoundField { r#type, field } => {
-                format!("Consider removing `{}.{}` from your code.", r#type, field)
-            }
+                    format!("Consider removing `{}.{}` from your code.", r#type, field)
+                }
         CompilationErrorKind::ModuleNotFound { path } => format!(
-                "Consider to create module '{}' before use it",
-                path.join(".")
-            ),
+                    "Consider to create module '{}' before use it",
+                    path.join(".")
+                ),
         CompilationErrorKind::ModuleAccessDenied { path, full_path } => todo!(),
         CompilationErrorKind::ModuleReadError {
-                path,
-                error,
-                full_path,
-            } => todo!(),
+                    path,
+                    error,
+                    full_path,
+                } => todo!(),
         CompilationErrorKind::InvalidLiteral { line } => todo!(),
         CompilationErrorKind::InvalidPostfixOperatorUsage { msg } => todo!(),
         CompilationErrorKind::InvalidExpression { msg } => {
-                format!("Consider removing this expression")
-            }
+                    format!("Consider removing this expression")
+                }
         CompilationErrorKind::InexistentType { r#type } => {
-                format!("Consider declare the '{}' type before use it", r#type)
-            }
+                    format!("Consider declare the '{}' type before use it", r#type)
+                }
         CompilationErrorKind::UsageOfNotInferredVariable { name } => todo!(),
         CompilationErrorKind::NotFoundArchetypeMask(not_found_archetype_mask) => todo!(),
         CompilationErrorKind::UsageOfUndeclaredVariable { name } => {
-                format_usage_of_undeclared_variable(name)
-            }
+                    format_usage_of_undeclared_variable(name)
+                }
         CompilationErrorKind::InvalidAttributeExpression { msg } => {
-                format!("Consider change or remove the attribute declaration")
-            }
+                    format!("Consider change or remove the attribute declaration")
+                }
         CompilationErrorKind::InvalidOperatorOverload(msg) => {
-                format!("Consider changing function structure to match with desired overload.")
-            }
+                    format!("Consider changing function structure to match with desired overload.")
+                }
         CompilationErrorKind::MismatchAttrbuteArgument { arg, accepted } => {
-                let formatted = accepted
-                    .iter()
-                    .map(|s| format!("\"{}\"", s))
-                    .collect::<Vec<_>>()
-                    .join(", ");
+                    let formatted = accepted
+                        .iter()
+                        .map(|s| format!("\"{}\"", s))
+                        .collect::<Vec<_>>()
+                        .join(", ");
 
-                format!("The valid arguments here are: {}", formatted)
-            }
+                    format!("The valid arguments here are: {}", formatted)
+                }
         CompilationErrorKind::InvalidConstantEvaluation(_) => todo!(),
         CompilationErrorKind::OperatorOverloadNotFound {
-                this,
-                other,
-                operator,
-            } => format!("Consider implement correspondent operator overload"),
+                    this,
+                    other,
+                    operator,
+                } => format!("Consider implement correspondent operator overload"),
         CompilationErrorKind::DuplicatedDefinition {
-                definition,
-                target,
-                kind,
-            } => format!(
-                "Consider removing one of the definitions of `{}.{}`",
-                target, definition
-            ),
+                    definition,
+                    target,
+                    kind,
+                } => format!(
+                    "Consider removing one of the definitions of `{}.{}`",
+                    target, definition
+                ),
         CompilationErrorKind::MismatchArgumentCount {
-                expected,
-                found,
-                function_name,
-            } => format!("Consider adding the missing argument"),
-CompilationErrorKind::AssignTypeError { kind, found } => format!("Consider change the type of variable or assign with other value that match expected type"),
+                    expected,
+                    found,
+                    function_name,
+                } => format!("Consider adding the missing argument"),
+        CompilationErrorKind::AssignTypeError { kind, found } => format!("Consider change the type of variable or assign with other value that match expected type"),
+        CompilationErrorKind::FunctionMayNotReturn { function_kind, name } => format!("Consider adding return statements to all control flow paths"),
     }
 }
 
@@ -383,6 +501,13 @@ fn stringify_error(err: &CompilationError) -> String {
         CompilationErrorKind::AssignTypeError { kind, found } => {
             format!("Cannot assign '{}' instance with '{}' value.", kind, found)
         }
+        CompilationErrorKind::FunctionMayNotReturn {
+            function_kind,
+            name,
+        } => format!(
+            "{} `{}` may not return in all control flow paths.",
+            function_kind, name
+        ),
     }
 }
 

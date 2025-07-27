@@ -310,7 +310,7 @@ impl SemanticAnalyzer {
 
         while !self.is_at_end() {
             stmt = self.current().unwrap().clone();
-            let ty_stmt = self.analyze_stmt(&stmt);
+            let ty_stmt = self.analyze_stmt(&stmt, &stmt.span(), &stmt.line());
 
             match ty_stmt {
                 Err(e) => {

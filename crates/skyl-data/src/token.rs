@@ -163,4 +163,14 @@ impl Token {
             span,
         }
     }
+
+    pub fn new_synthetic(lexeme: &str) -> Self {
+        Token {
+            kind: TokenKind::Identifier,
+            lexeme: lexeme.to_string(),
+            line: 0,
+            column: 0,
+            span: Span { end: 1, start: 0 },
+        }
+    }
 }

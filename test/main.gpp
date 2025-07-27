@@ -1,21 +1,14 @@
-def main() -> void {
-   for i in 10.down_to(2) {
-      println(i);
+def test() -> int {
+   for i in step(20, 0, -5).skip(2) {
+      return 0;
+   }
+   return 0;
+}
+
+def main() -> int {
+   for i in step(20, 0, -5).skip(2) {
+      return 0;
    }
 
-   for i in range(0, 10) {
-      println(i);
-   }
-
-   for i in range(0, 10).rev() {
-      println(i);
-   }
-
-   for i in range(0, 10).skip(3).rev() {
-      println(i);
-   }
-
-   for i in step(0, 10, 2).rev() {
-      println(i);
-   }
+   return test();
 }

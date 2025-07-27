@@ -7,4 +7,5 @@ mod statements;
 pub mod step;
 mod type_resolver;
 pub use semantic_analyzer::SemanticAnalyzer;
+mod control_flow;
 mod decorator_processor;

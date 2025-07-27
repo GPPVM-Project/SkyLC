@@ -29,6 +29,7 @@ pub struct VirtualMachine {
     chunk: Rc<Chunk>,
     unsafe_mode: bool,
     heap: Heap,
+    halted: bool,
 }
 
 impl NativeBridge for VirtualMachine {
@@ -75,6 +76,7 @@ impl VirtualMachine {
             bytecode: None,
             unsafe_mode: true,
             heap,
+            halted: false,
         };
 
         vm
@@ -527,6 +529,11 @@ impl VirtualMachine {
 
     #[inline]
     pub fn handle_return(&mut self) {
+        if self.frame_stack.len() == 1 {
+            self.handle_halt();
+            return;
+        }
+
         let ret_value = self.pop();
 
         if let Value::Void = ret_value {
@@ -692,6 +699,14 @@ impl VirtualMachine {
             let byte = self.read_byte();
             let instruction = unsafe { std::mem::transmute::<u8, Instruction>(byte) };
 
+            if self.halted {
+                println!(
+                    "Process finished with code {}.",
+                    self.stack[self.fp].to_string()
+                );
+                break;
+            }
+
             match instruction {
                 Instruction::Add => self.handle_add(),
                 Instruction::And => self.handle_and(),
@@ -736,6 +751,7 @@ impl VirtualMachine {
                 Instruction::Not => self.handle_not(),
                 Instruction::InvokeVirtual => self.handle_invoke_virtual(),
                 Instruction::Halt => {
+                    self.handle_halt();
                     break;
                 }
                 _ => panic!("Unimplemented instruction: {:?}", instruction),
@@ -861,6 +877,12 @@ impl VirtualMachine {
 
     fn detach_fn(&mut self) {
         self.frame_stack.pop();
+
+        if self.frame_stack.is_empty() {
+            self.handle_halt();
+            return;
+        }
+
         self.chunk = self.frame_stack.last().unwrap().borrow().chunk.clone();
 
         self.ip = self.frame_stack.last().unwrap().borrow().ip;
@@ -874,5 +896,9 @@ impl VirtualMachine {
 
     fn print_info(&self) {
         println!("{:?}", self.frame_stack);
+    }
+
+    fn handle_halt(&mut self) {
+        self.halted = true;
     }
 }
