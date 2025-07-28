@@ -63,7 +63,7 @@ impl CompileTimeChunk {
                 }
             }
 
-            return 0u16;
+            0u16
         }
     }
 }

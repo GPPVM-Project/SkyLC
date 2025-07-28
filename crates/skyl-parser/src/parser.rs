@@ -166,8 +166,6 @@ impl Parser {
             },
         )?;
 
-        
-
         self.eat(
             TokenKind::Operator(OperatorKind::Arrow),
             CompilationErrorKind::ExpectedConstruction {
@@ -433,8 +431,6 @@ impl Parser {
             "function params",
         )?;
 
-        
-
         self.eat(
             TokenKind::Operator(OperatorKind::Arrow),
             CompilationErrorKind::ExpectedToken {
@@ -597,8 +593,6 @@ impl Parser {
             "')'",
             "function params",
         )?;
-
-        
 
         self.eat(
             TokenKind::Operator(OperatorKind::Arrow),
@@ -816,9 +810,10 @@ impl Parser {
         let scope = self.parse_scope()?;
 
         if let Statement::Scope(stmts, _, _) = &scope
-            && stmts.is_empty() {
-                return Ok(scope);
-            }
+            && stmts.is_empty()
+        {
+            return Ok(scope);
+        }
 
         let full_loop_span = start_token.span.merge(scope.span());
 
@@ -1273,11 +1268,12 @@ impl Parser {
             && self.try_eat(&[
                 TokenKind::Operator(OperatorKind::PostFixIncrement),
                 TokenKind::Operator(OperatorKind::PostFixDecrement),
-            ]) {
-                let op = self.previous();
-                let combined_span = expr.span().merge(op.span);
-                return Ok(Expression::PostFix(op, Rc::new(expr), combined_span));
-            }
+            ])
+        {
+            let op = self.previous();
+            let combined_span = expr.span().merge(op.span);
+            return Ok(Expression::PostFix(op, Rc::new(expr), combined_span));
+        }
 
         loop {
             if self.try_eat(&[TokenKind::Punctuation(PunctuationKind::LeftParen)]) {
@@ -1435,7 +1431,6 @@ impl Parser {
     ) -> Result<Expression, ParseError> {
         let start_span = self.previous().span;
         let mut values: Vec<Rc<Expression>> = Vec::new();
-        
 
         if !self.check(&[TokenKind::Punctuation(closing)]) {
             loop {
@@ -1567,34 +1562,23 @@ impl Parser {
     fn synchronize(&mut self) {
         while !self.is_at_end() {
             match self.peek().kind {
-                TokenKind::Punctuation(p) => match p {
+                TokenKind::Punctuation(
                     PunctuationKind::SemiColon
                     | PunctuationKind::Hash
                     | PunctuationKind::RightBrace
-                    | PunctuationKind::RightParen => return,
-                    _ => {
-                        self.advance();
-                    }
-                },
+                    | PunctuationKind::RightParen,
+                ) => return,
 
-                TokenKind::EndOfFile => {
-                    return;
-                }
-
-                TokenKind::Keyword(keyword) => match keyword {
+                TokenKind::Keyword(
                     KeywordKind::Def
                     | KeywordKind::Type
                     | KeywordKind::For
                     | KeywordKind::If
                     | KeywordKind::Let
-                    | KeywordKind::While => {
-                        return;
-                    }
+                    | KeywordKind::While,
+                ) => return,
 
-                    _ => {
-                        self.advance();
-                    }
-                },
+                TokenKind::EndOfFile => return,
 
                 _ => {
                     self.advance();

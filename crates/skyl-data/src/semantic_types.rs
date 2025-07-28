@@ -115,6 +115,12 @@ pub struct ContextScope {
     pub names: HashMap<String, SemanticValue>,
 }
 
+impl Default for ContextScope {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ContextScope {
     pub fn new() -> Self {
         Self {
@@ -268,7 +274,7 @@ impl SymbolTable {
     }
 
     pub fn get_attribute(&self, name: String) -> Option<&BuiltinAttribute> {
-        return self.attributes.get(&name);
+        self.attributes.get(&name)
     }
 
     pub fn define_attribute(&mut self, name: String, args: Vec<Rc<RefCell<TypeDescriptor>>>) {
@@ -294,10 +300,7 @@ impl SymbolTable {
 
     pub fn get_type_by_id(&self, id: u32) -> Option<Rc<RefCell<TypeDescriptor>>> {
         let types = self.names.iter().find(|(_, v)| v.kind.borrow().id == id);
-        match types {
-            None => None,
-            Some((_, s)) => Some(s.kind.clone()),
-        }
+        types.map(|(_, s)| s.kind.clone())
     }
 }
 

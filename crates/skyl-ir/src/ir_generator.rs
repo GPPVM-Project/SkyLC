@@ -943,7 +943,7 @@ impl IRGenerator {
         code.push(method_index_bytes.2);
         code.push(method_index_bytes.3);
 
-        code.push(ir_method.arity as u8);
+        code.push(ir_method.arity);
 
         code
     }

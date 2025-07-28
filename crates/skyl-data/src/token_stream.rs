@@ -15,7 +15,7 @@ impl TokenStream {
     }
 
     pub fn previous(&self) -> Token {
-        if self.position - 1 >= self.tokens.len() {
+        if self.position > self.tokens.len() {
             let tk = self.tokens.last().unwrap().clone();
             return Token::new(
                 TokenKind::EndOfFile,

@@ -85,7 +85,7 @@ impl Expression {
             | Expression::Attribute(_, _, span)
             | Expression::Group(_, span)
             | Expression::ListGet(_, _, span)
-            | Expression::ListSet(_, _, _, span) => span.clone(),
+            | Expression::ListSet(_, _, _, span) => *span,
 
             Expression::Lambda => {
                 unimplemented!("")
@@ -99,31 +99,31 @@ impl Display for Expression {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Expression::ListSet(list, index, value, _) => {
-                write!(f, "ListSet({}[{}] = {})", list, index, value)
+                write!(f, "ListSet({list}[{index}] = {value})")
             }
-            Expression::Literal(token, _) => write!(f, "{}", token),
-            Expression::Unary(op, expr, _) => write!(f, "({} {})", op, expr),
+            Expression::Literal(token, _) => write!(f, "{token}"),
+            Expression::Unary(op, expr, _) => write!(f, "({op} {expr})"),
             Expression::PostFix(op, var, _) => write!(f, "({} {})", op.lexeme, var),
-            Expression::Arithmetic(left, op, right, _) => write!(f, "({} {} {})", left, op, right),
-            Expression::Logical(left, op, right, _) => write!(f, "({} {} {})", left, op, right),
+            Expression::Arithmetic(left, op, right, _) => write!(f, "({left} {op} {right})"),
+            Expression::Logical(left, op, right, _) => write!(f, "({left} {op} {right})"),
             Expression::Ternary(cond, then_expr, else_expr, _) => {
-                write!(f, "Ternary({} ? {} : {})", cond, then_expr, else_expr)
+                write!(f, "Ternary({cond} ? {then_expr} : {else_expr})")
             }
-            Expression::Assign(var, expr, _) => write!(f, "({} = {})", var, expr),
+            Expression::Assign(var, expr, _) => write!(f, "({var} = {expr})"),
             Expression::Lambda => write!(f, "(lambda)"),
-            Expression::Get(object, field, _) => write!(f, "Get({}.{})", object, field),
+            Expression::Get(object, field, _) => write!(f, "Get({object}.{field})"),
             Expression::ListGet(expression, index, _) => {
-                write!(f, "ListGet({}.{})", expression, index)
+                write!(f, "ListGet({expression}.{index})")
             }
             Expression::Set(object, field, value, _) => {
-                write!(f, "Set({}.{} = {})", object, field, value)
+                write!(f, "Set({object}.{field} = {value})")
             }
-            Expression::Variable(name, _) => write!(f, "Variable({})", name),
-            Expression::Call(callee, _, args, _) => write!(f, "Call({:?}, {:?})", callee, args),
-            Expression::Tuple(values, _) => write!(f, "Tuple({:?})", values),
-            Expression::List(values, _) => write!(f, "List({:?})", values),
-            Expression::Group(expr, _) => write!(f, "Group({:?})", expr),
-            Expression::Attribute(name, args, _) => write!(f, "Attribute({:?}, {:?})", name, args),
+            Expression::Variable(name, _) => write!(f, "Variable({name})"),
+            Expression::Call(callee, _, args, _) => write!(f, "Call({callee:?}, {args:?})"),
+            Expression::Tuple(values, _) => write!(f, "Tuple({values:?})"),
+            Expression::List(values, _) => write!(f, "List({values:?})"),
+            Expression::Group(expr, _) => write!(f, "Group({expr:?})"),
+            Expression::Attribute(name, args, _) => write!(f, "Attribute({name:?}, {args:?})"),
             Expression::Void => write!(f, "Void()"),
             Expression::TypeComposition(_, _) => write!(f, "TypeComposition"),
         }

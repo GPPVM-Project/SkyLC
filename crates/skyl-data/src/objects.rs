@@ -54,12 +54,12 @@ impl Eq for Value {}
 impl Debug for Value {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Value::Bool(v) => f.write_str(&format!("{}", v)),
-            Value::Int(v) => f.write_str(&format!("{}", v)),
-            Value::Float(v) => f.write_str(&format!("{}", v)),
-            Value::String(v) => f.write_str(&format!("{}", v)),
+            Value::Bool(v) => f.write_str(&format!("{v}")),
+            Value::Int(v) => f.write_str(&format!("{v}")),
+            Value::Float(v) => f.write_str(&format!("{v}")),
+            Value::String(v) => f.write_str(&format!("{v}")),
             Value::Void => f.write_str("void"),
-            Value::Object(obj_ptr) => f.write_str(&format!("{}", obj_ptr.borrow().to_string())),
+            Value::Object(obj_ptr) => f.write_str(&obj_ptr.borrow().to_string()),
         }
     }
 }
@@ -67,12 +67,12 @@ impl Debug for Value {
 impl Display for Value {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Value::Bool(v) => f.write_str(&format!("{}", v)),
-            Value::Int(v) => f.write_str(&format!("{}", v)),
-            Value::Float(v) => f.write_str(&format!("{}", v)),
-            Value::String(v) => f.write_str(&format!("{}", v)),
+            Value::Bool(v) => f.write_str(&format!("{v}")),
+            Value::Int(v) => f.write_str(&format!("{v}")),
+            Value::Float(v) => f.write_str(&format!("{v}")),
+            Value::String(v) => f.write_str(&format!("{v}")),
             Value::Void => f.write_str("void"),
-            Value::Object(obj_ptr) => f.write_str(&format!("{}", obj_ptr.borrow().to_string())),
+            Value::Object(obj_ptr) => f.write_str(&obj_ptr.borrow().to_string()),
         }
     }
 }
@@ -98,7 +98,7 @@ impl Eq for dyn Object {}
 
 impl Debug for dyn Object {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&String::from(format!("{:?}", self.to_string())))
+        f.write_str(&format!("{:?}", self.to_string()))
     }
 }
 

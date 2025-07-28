@@ -40,9 +40,9 @@ pub enum OperatorKind {
     PostFixDecrement,
 }
 
-impl Into<CoersionKind> for OperatorKind {
-    fn into(self) -> CoersionKind {
-        match self {
+impl From<OperatorKind> for CoersionKind {
+    fn from(val: OperatorKind) -> Self {
+        match val {
             OperatorKind::Plus => CoersionKind::Add,
             OperatorKind::Minus => CoersionKind::Sub,
             OperatorKind::Star => CoersionKind::Mul,

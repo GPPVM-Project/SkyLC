@@ -63,7 +63,7 @@ impl CodeGraph {
         self.connections.insert(name.clone(), id);
         self.inverse_connections.insert(id, name);
 
-        return id;
+        id
     }
 
     pub fn get_function_id(&self, name: &str) -> u32 {

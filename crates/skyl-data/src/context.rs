@@ -3,6 +3,12 @@ pub struct CompilerContext {
     modules: Vec<String>,
 }
 
+impl Default for CompilerContext {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CompilerContext {
     pub fn new() -> Self {
         Self {
