@@ -188,7 +188,7 @@ impl Decompiler {
         info: &Vec<IRFunction>,
         ir: &IntermediateCode,
     ) {
-        let mut index = 0usize;
+        let mut index;
         for method in info {
             let width = 60;
 

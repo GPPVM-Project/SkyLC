@@ -221,6 +221,12 @@ pub struct CompilerErrorStack {
     errors: Vec<CompilationError>,
 }
 
+impl Default for CompilerErrorStack {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CompilerErrorStack {
     pub fn new() -> Self {
         CompilerErrorStack { errors: Vec::new() }
@@ -261,7 +267,7 @@ impl CompilerErrorReporter {
     pub fn report_error(&mut self, mut error: CompilationError) {
         if let Some(ctx) = &self.ctx {
             error.file = Some(ctx.borrow().peek_module());
-            if !self.error_files.contains_key(&error.clone().file.unwrap()) {
+            if let std::collections::hash_map::Entry::Vacant(e) = self.error_files.entry(error.clone().file.unwrap()) {
                 let file = read_file_without_bom(error.clone().file.unwrap().as_str());
                 let file = match file {
                     Err(e) => {
@@ -270,7 +276,7 @@ impl CompilerErrorReporter {
                     Ok(f) => f,
                 };
 
-                self.error_files.insert(error.clone().file.unwrap(), file);
+                e.insert(file);
             }
 
             self.stack.push(error);
@@ -284,7 +290,7 @@ impl CompilerErrorReporter {
     }
 
     pub fn has_errors(&self) -> bool {
-        self.stack.errors.len() > 0
+        !self.stack.errors.is_empty()
     }
 }
 
@@ -304,7 +310,7 @@ pub fn handle_errors(reporter: &CompilerErrorReporter) {
         for error in reporter.get_errors() {
             let formated_error =
                 format_err(error, &reporter.error_files[&error.file.clone().unwrap()]);
-            println!("{}", formated_error);
+            println!("{formated_error}");
         }
 
         gpp_error!(

@@ -6,7 +6,7 @@ use skyl_data::{CompilerConfig, CompilerContext};
 pub mod errors;
 pub mod format_err;
 
-use crate::errors::{handle_errors, CompilerErrorReporter, PipelineError};
+use crate::errors::{CompilerErrorReporter, PipelineError};
 
 pub trait PipelineStep {
     fn run(
@@ -20,6 +20,12 @@ pub trait PipelineStep {
 
 pub struct Pipeline {
     stages: Vec<Box<dyn PipelineStep>>,
+}
+
+impl Default for Pipeline {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Pipeline {
