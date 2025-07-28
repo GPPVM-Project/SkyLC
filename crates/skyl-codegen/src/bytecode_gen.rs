@@ -7,6 +7,7 @@ use skyl_data::{
 };
 use skyl_driver::gpp_error;
 
+#[derive(Default)]
 pub struct BytecodeGenerator;
 
 impl BytecodeGenerator {
@@ -23,21 +24,20 @@ impl BytecodeGenerator {
             let code = function.1.chunk.code.clone();
             let mut constants = Vec::new();
 
+            let mut c: Value;
             for constant in &function.1.chunk.constants {
-                let c: Value;
-
                 match constant {
                     CompileTimeValue::Int(v) => {
-                        c = Value::Int(v.clone());
+                        c = Value::Int(*v);
                     }
                     CompileTimeValue::Float(v) => {
-                        c = Value::Float(v.clone());
+                        c = Value::Float(*v);
                     }
                     CompileTimeValue::String(v) => {
                         c = Value::String(Rc::new(v.clone()));
                     }
                     CompileTimeValue::Boolean(v) => {
-                        c = Value::Bool(v.clone());
+                        c = Value::Bool(*v);
                     }
                     CompileTimeValue::Object(_) => {
                         gpp_error!("Cannot create complex object constants.");
@@ -62,21 +62,21 @@ impl BytecodeGenerator {
                 let code = method.chunk.code.clone();
                 let mut constants = Vec::new();
 
-                for constant in &method.chunk.constants {
-                    let c: Value;
+                let mut c: Value;
 
+                for constant in &method.chunk.constants {
                     match constant {
                         CompileTimeValue::Int(v) => {
-                            c = Value::Int(v.clone());
+                            c = Value::Int(*v);
                         }
                         CompileTimeValue::Float(v) => {
-                            c = Value::Float(v.clone());
+                            c = Value::Float(*v);
                         }
                         CompileTimeValue::String(v) => {
                             c = Value::String(Rc::new(v.clone()));
                         }
                         CompileTimeValue::Boolean(v) => {
-                            c = Value::Bool(v.clone());
+                            c = Value::Bool(*v);
                         }
                         CompileTimeValue::Object(_) => {
                             gpp_error!("Cannot create complex object constants.");
@@ -89,10 +89,10 @@ impl BytecodeGenerator {
                 let chunk = Chunk::new(code, constants);
                 let virtual_function = VirtualFunction::new(method.id, Rc::new(chunk));
 
-                if v_tables.contains_key(&desc.id) {
-                    v_tables.get_mut(&desc.id).unwrap().push(virtual_function);
+                if let std::collections::hash_map::Entry::Vacant(e) = v_tables.entry(desc.id) {
+                    e.insert(vec![virtual_function]);
                 } else {
-                    v_tables.insert(desc.id, vec![virtual_function]);
+                    v_tables.get_mut(&desc.id).unwrap().push(virtual_function);
                 }
             }
         }

@@ -1,15 +1,9 @@
-use skyl_data::{bytecode::Bytecode, IntermediateCode};
+use skyl_data::IntermediateCode;
 use skyl_data::{CompilerConfig, CompilerContext};
 use skyl_driver::{errors::CompilerErrorReporter, errors::PipelineError, PipelineStep};
 use std::{any::Any, cell::RefCell, rc::Rc};
 
 use crate::bytecode_gen::BytecodeGenerator;
-
-impl Default for BytecodeGenerator {
-    fn default() -> Self {
-        Self {}
-    }
-}
 
 impl PipelineStep for BytecodeGenerator {
     fn run(
