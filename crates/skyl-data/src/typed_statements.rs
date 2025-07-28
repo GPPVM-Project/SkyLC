@@ -110,7 +110,7 @@ impl AnnotatedStatement {
             | Self::Function(_, body, _, _)
             | Self::InternalDefinition(_, _, body, _, _) => body.end_line(),
 
-            Self::Expression(expr, _, _) => 0,
+            Self::Expression(_, _, _) => 0,
 
             _ => self.line(),
         }

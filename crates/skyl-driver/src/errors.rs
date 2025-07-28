@@ -267,7 +267,9 @@ impl CompilerErrorReporter {
     pub fn report_error(&mut self, mut error: CompilationError) {
         if let Some(ctx) = &self.ctx {
             error.file = Some(ctx.borrow().peek_module());
-            if let std::collections::hash_map::Entry::Vacant(e) = self.error_files.entry(error.clone().file.unwrap()) {
+            if let std::collections::hash_map::Entry::Vacant(e) =
+                self.error_files.entry(error.clone().file.unwrap())
+            {
                 let file = read_file_without_bom(error.clone().file.unwrap().as_str());
                 let file = match file {
                     Err(e) => {
@@ -305,7 +307,7 @@ impl PipelineError {
 
 pub fn handle_errors(reporter: &CompilerErrorReporter) {
     if reporter.has_errors() {
-        let file = reporter.file.as_ref().map(Rc::clone).unwrap().clone();
+        let _file = reporter.file.as_ref().map(Rc::clone).unwrap().clone();
 
         for error in reporter.get_errors() {
             let formated_error =

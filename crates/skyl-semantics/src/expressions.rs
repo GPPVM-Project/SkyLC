@@ -1,3 +1,5 @@
+#![allow(clippy::result_large_err)]
+
 use std::rc::Rc;
 
 use skyl_data::{
@@ -337,15 +339,13 @@ impl SemanticAnalyzer {
                     ))
                 }
 
-                _ => {
-                    Err(CompilationError::with_span(
-                        CompilationErrorKind::InvalidExpression {
-                            msg: format!("Invalid arithmetic operator '{}'", token.lexeme),
-                        },
-                        Some(token.line),
-                        token.span,
-                    ))
-                }
+                _ => Err(CompilationError::with_span(
+                    CompilationErrorKind::InvalidExpression {
+                        msg: format!("Invalid arithmetic operator '{}'", token.lexeme),
+                    },
+                    Some(token.line),
+                    token.span,
+                )),
             }
         } else {
             Err(CompilationError::with_span(
@@ -422,9 +422,10 @@ impl SemanticAnalyzer {
                 let symbol_type = sv.kind;
 
                 if let Some(kind) = &symbol_type
-                    && kind.borrow().name == "void" {
-                        gpp_error!("Cannot assign 'void' to variables. At line {}.", token.line);
-                    }
+                    && kind.borrow().name == "void"
+                {
+                    gpp_error!("Cannot assign 'void' to variables. At line {}.", token.line);
+                }
 
                 if value_type.borrow().name == "void" {
                     gpp_error!("Cannot assign 'void' to variables. At line {}.", token.line);
@@ -671,16 +672,14 @@ impl SemanticAnalyzer {
                         ))
                     }
 
-                    None => {
-                        Err(CompilationError::with_span(
-                            CompilationErrorKind::SymbolNotFound {
-                                symbol_kind: "function".to_string(),
-                                symbol_name: name.lexeme.clone(),
-                            },
-                            Some(name.line),
-                            name.span,
-                        ))
-                    }
+                    None => Err(CompilationError::with_span(
+                        CompilationErrorKind::SymbolNotFound {
+                            symbol_kind: "function".to_string(),
+                            symbol_name: name.lexeme.clone(),
+                        },
+                        Some(name.line),
+                        name.span,
+                    )),
                 },
             }
         } else {
@@ -701,9 +700,9 @@ impl SemanticAnalyzer {
                     annotated_args.push(Box::new(self.analyze_expr(callee)?));
 
                     if method.arity > 1 {
-                        for i in 0..(args.len()) {
+                        for (i, _) in args.iter().enumerate() {
                             let param_kind = &method.params[i + 1];
-                            let arg_kind = self.resolve_expr_type(&args[i])?;
+                            let _arg_kind = self.resolve_expr_type(&args[i])?;
 
                             self.assert_archetype_kind(
                                 &args[i],
@@ -800,11 +799,8 @@ impl SemanticAnalyzer {
                     ));
                 }
 
-                let mut index = 0usize;
-
-                for kind in &att.args.clone() {
+                for (index, kind) in att.args.clone().iter().enumerate() {
                     let expr = expressions[index].clone();
-                    index += 1;
                     let expr_kind = self.resolve_expr_type(&expr)?;
 
                     if kind.borrow().id != expr_kind.borrow().id {

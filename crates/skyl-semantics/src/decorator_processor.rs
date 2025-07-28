@@ -1,3 +1,4 @@
+#![allow(clippy::result_large_err)]
 use std::rc::Rc;
 
 use skyl_data::{

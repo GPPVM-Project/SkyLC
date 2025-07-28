@@ -379,7 +379,7 @@ mod tests {
         let binding = reporter.borrow();
         let errors = binding.get_errors();
 
-        for (i, error) in errors.iter().enumerate() {
+        for (_, _) in errors.iter().enumerate() {
             unimplemented!();
         }
     }

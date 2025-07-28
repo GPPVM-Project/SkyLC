@@ -29,7 +29,7 @@ impl PipelineStep for Lexer {
         &mut self,
         input: Box<dyn Any>,
         _config: &CompilerConfig,
-        ctx: Rc<RefCell<CompilerContext>>,
+        _ctx: Rc<RefCell<CompilerContext>>,
         reporter: Rc<RefCell<CompilerErrorReporter>>,
     ) -> Result<Box<dyn Any>, PipelineError> {
         let source = input

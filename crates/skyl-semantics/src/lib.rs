@@ -1,6 +1,5 @@
 mod expressions;
 mod import_pipeline;
-mod provider;
 mod result;
 mod semantic_analyzer;
 mod statements;

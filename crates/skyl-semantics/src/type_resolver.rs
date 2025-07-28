@@ -1,3 +1,5 @@
+#![allow(clippy::result_large_err)]
+
 use std::{cell::RefCell, collections::HashSet, rc::Rc};
 
 use skyl_data::{
@@ -30,8 +32,8 @@ impl SemanticAnalyzer {
         expression: &Expression,
     ) -> TyResult<Rc<RefCell<TypeDescriptor>>> {
         match expression {
-            Expression::List(elements, span) => self.get_static_kind_by_name("list", expression),
-            Expression::Literal(token, span) => match token.kind {
+            Expression::List(_, _) => self.get_static_kind_by_name("list", expression),
+            Expression::Literal(token, _) => match token.kind {
                 TokenKind::Identifier => self.resolve_identifier_type(token),
                 TokenKind::Literal(literal) => match literal {
                     Literal::String => Ok(self.get_symbol("str").unwrap().kind.clone()),
@@ -41,8 +43,8 @@ impl SemanticAnalyzer {
                 },
                 _ => gpp_error!("Expect literal in line {}.", token.line),
             },
-            Expression::Unary(_, expression, span) => self.resolve_expr_type(expression),
-            Expression::Arithmetic(left, op, right, span) => {
+            Expression::Unary(_, expression, _) => self.resolve_expr_type(expression),
+            Expression::Arithmetic(left, op, right, _) => {
                 if let TokenKind::Operator(operator) = op.kind {
                     match operator {
                         OperatorKind::Plus
@@ -118,7 +120,7 @@ impl SemanticAnalyzer {
                     op.span,
                 ))
             }
-            Expression::Logical(left, _, _, span) => {
+            Expression::Logical(left, _, _, _) => {
                 let left_type = self.resolve_expr_type(left)?;
 
                 if left_type != self.get_symbol("bool").unwrap().kind {
@@ -126,8 +128,8 @@ impl SemanticAnalyzer {
                 }
                 Ok(left_type)
             }
-            Expression::Ternary(cond, true_expr, false_expr, span) => {
-                let cond_type = self.resolve_expr_type(cond)?;
+            Expression::Ternary(cond, true_expr, false_expr, _) => {
+                let _cond_type = self.resolve_expr_type(cond)?;
                 let true_type = self.resolve_expr_type(true_expr)?;
                 let false_type = self.resolve_expr_type(false_expr)?;
 
@@ -136,19 +138,19 @@ impl SemanticAnalyzer {
                 }
                 Ok(true_type)
             }
-            Expression::Variable(name, span) => self.resolve_identifier_type(name),
-            Expression::Assign(_, expr, span) => self.resolve_expr_type(expr),
+            Expression::Variable(name, _) => self.resolve_identifier_type(name),
+            Expression::Assign(_, expr, _) => self.resolve_expr_type(expr),
             Expression::Lambda => {
                 gpp_error!("Lambda expressions are currently not supported.")
             }
-            Expression::TypeComposition(mask, span) => self.resolve_type_composition(mask),
-            Expression::Call(callee, paren, args, span) => {
+            Expression::TypeComposition(mask, _) => self.resolve_type_composition(mask),
+            Expression::Call(callee, paren, args, _) => {
                 self.resolve_function_return_type(callee, paren, args)
             }
-            Expression::Get(object, token, span) => self.resolve_get_expr(object, token),
-            Expression::Group(expression, span) => self.resolve_expr_type(expression),
+            Expression::Get(object, token, _) => self.resolve_get_expr(object, token),
+            Expression::Group(expression, _) => self.resolve_expr_type(expression),
             Expression::Void => Ok(self.get_void_instance()),
-            Expression::ListGet(list, index, span) => self.resolve_list_get_type(list, index),
+            Expression::ListGet(list, index, _) => self.resolve_list_get_type(list, index),
             _ => gpp_error!("Expression {expression:?} are not supported."),
         }
     }
@@ -178,12 +180,12 @@ impl SemanticAnalyzer {
 
         let mut path = vec![token.clone()];
 
-        while let Expression::Get(expr, name, span) = current_expression {
+        while let Expression::Get(expr, name, _) = current_expression {
             path.push(name.clone());
             current_expression = expr;
         }
 
-        if let Expression::Variable(name, span) = current_expression {
+        if let Expression::Variable(name, _) = current_expression {
             path.push(name.clone());
         } else {
             current_kind = Some(Rc::clone(&self.resolve_expr_type(current_expression)?));
@@ -279,11 +281,11 @@ impl SemanticAnalyzer {
     fn resolve_list_get_type(
         &mut self,
         list: &Expression,
-        index: &Expression,
+        _index: &Expression,
     ) -> TyResult<Rc<RefCell<TypeDescriptor>>> {
         match list {
-            Expression::List(elements, span) => self.resolve_list_type(elements),
-            Expression::Variable(name, span) => self.resolve_identifier_type(name),
+            Expression::List(elements, _) => self.resolve_list_type(elements),
+            Expression::Variable(name, _) => self.resolve_identifier_type(name),
             _ => gpp_error!("Cannot resolve list type for {}.", list),
         }
     }
@@ -358,7 +360,7 @@ impl SemanticAnalyzer {
     ///
     /// # Errors
     /// - Raises an error if the path has more than one token, indicating unsupported module usage.
-    pub(super) fn resolve_type(&self, path: Vec<Token>) -> TyResult<Rc<RefCell<TypeDescriptor>>> {
+    pub(super) fn _resolve_type(&self, path: Vec<Token>) -> TyResult<Rc<RefCell<TypeDescriptor>>> {
         if path.len() != 1 {
             gpp_error!(
                 "Modules are currently not supported. At line {}.",
@@ -390,11 +392,11 @@ impl SemanticAnalyzer {
         &mut self,
         iterator: &Expression,
     ) -> TyResult<Rc<RefCell<TypeDescriptor>>> {
-        let expr_kind = self.resolve_expr_type(iterator);
+        let _expr_kind = self.resolve_expr_type(iterator)?;
 
         match iterator {
-            Expression::List(elements, span) => self.resolve_list_type(elements),
-            Expression::Call(callee, paren, args, span) => {
+            Expression::List(elements, _) => self.resolve_list_type(elements),
+            Expression::Call(callee, paren, args, _) => {
                 self.analyze_call_expression(callee, paren, args)?;
                 self.resolve_function_return_type(callee, paren, args)
             }

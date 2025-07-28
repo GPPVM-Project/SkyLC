@@ -72,9 +72,7 @@ impl Display for Value {
             Value::Float(v) => f.write_str(&format!("{}", v)),
             Value::String(v) => f.write_str(&format!("{}", v)),
             Value::Void => f.write_str("void"),
-            Value::Object(obj_ptr) => {
-                f.write_str(&format!("{}", unsafe { obj_ptr.borrow().to_string() }))
-            }
+            Value::Object(obj_ptr) => f.write_str(&format!("{}", obj_ptr.borrow().to_string())),
         }
     }
 }
@@ -148,19 +146,19 @@ impl Object for Instance {
         size += self.fields.len() * std::mem::size_of::<Value>();
 
         for value in &self.fields {
-            if let Value::Object(gc_ref) = value {
+            if let Value::Object(_) = value {
                 todo!();
-                let obj = unsafe { gc_ref };
-                size += obj.borrow().get_size();
+                //let obj = unsafe { gc_ref };
+                //size += obj.borrow().get_size();
             }
         }
 
         size
     }
 
-    fn trace_references(&self, tracer: &mut dyn FnMut(&GcRef)) {
+    fn trace_references(&self, _tracer: &mut dyn FnMut(&GcRef)) {
         for field in &self.fields {
-            if let Value::Object(obj_ref) = field {
+            if let Value::Object(_) = field {
                 todo!();
                 //tracer(obj_ref);
             }
@@ -212,19 +210,19 @@ impl Object for List {
         size += self.elements.len() * std::mem::size_of::<Value>();
 
         for value in &self.elements {
-            if let Value::Object(gc_ref) = value {
+            if let Value::Object(_) = value {
                 todo!();
-                let obj = unsafe { gc_ref };
-                size += obj.borrow().get_size();
+                //let obj = unsafe { gc_ref };
+                //size += obj.borrow().get_size();
             }
         }
 
         size
     }
 
-    fn trace_references(&self, tracer: &mut dyn FnMut(&GcRef)) {
+    fn trace_references(&self, _tracer: &mut dyn FnMut(&GcRef)) {
         for value in &self.elements {
-            if let Value::Object(obj_ref) = value {
+            if let Value::Object(_) = value {
                 todo!();
                 //tracer(obj_ref);
             }

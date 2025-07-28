@@ -1,3 +1,5 @@
+#![allow(clippy::result_large_err)]
+
 use std::{cell::RefCell, cmp::Ordering, collections::HashMap, path::PathBuf, rc::Rc};
 
 use skyl_data::{
@@ -34,11 +36,11 @@ impl SemanticAnalyzer {
     pub(super) fn analyze_stmt(
         &mut self,
         stmt: &Statement,
-        span: &Span,
-        line: &usize,
+        _span: &Span,
+        _line: &usize,
     ) -> Result<TyStmts, CompilationError> {
         match stmt {
-            Statement::Return(keyword, value, span, line) => {
+            Statement::Return(keyword, value, _, _) => {
                 Ok(vec![self.analyze_return(keyword, value)?])
             }
             Statement::Expression(expr, span, line) => Ok(vec![AnnotatedStatement::Expression(
@@ -46,33 +48,33 @@ impl SemanticAnalyzer {
                 *span,
                 *line,
             )]),
-            Statement::Decorator(hash_token, attribs, span, line) => {
+            Statement::Decorator(hash_token, attribs, _, _) => {
                 Ok(vec![self.analyze_decorator(hash_token, attribs)?])
             }
-            Statement::Type(name, archetypes, fields, span, line) => {
+            Statement::Type(name, archetypes, fields, _, _) => {
                 let result = self.analyze_type(name, archetypes, fields);
                 Ok(vec![result?])
             }
-            Statement::Function(name, params, body, return_kind, span, line) => {
+            Statement::Function(name, params, body, return_kind, _, _) => {
                 let result = self.analyze_function(name, params, body, return_kind)?;
                 self.analyze_control_flow(&result);
                 Ok(vec![result])
             }
-            Statement::NativeFunction(name, params, return_kind, span, line) => {
+            Statement::NativeFunction(name, params, return_kind, _, _) => {
                 Ok(vec![self.analyze_native_function(
                     name,
                     params,
                     return_kind,
                 )?])
             }
-            Statement::Variable(name, value, span, line) => {
+            Statement::Variable(name, value, _, _) => {
                 Ok(vec![self.analyze_variable_declaration(name, value)?])
             }
 
-            Statement::While(condition, body, span, line) => {
+            Statement::While(condition, body, _, _) => {
                 Ok(vec![self.analyze_while_stmt(condition, body)?])
             }
-            Statement::If(keyword, condition, body, else_branch, span, line) => {
+            Statement::If(keyword, condition, body, else_branch, _, _) => {
                 Ok(vec![self.analyze_if_stmt(
                     keyword,
                     condition,
@@ -80,15 +82,15 @@ impl SemanticAnalyzer {
                     else_branch,
                 )?])
             }
-            Statement::BuiltinAttribute(name, kinds, span, line) => {
+            Statement::BuiltinAttribute(name, kinds, _, _) => {
                 Ok(vec![self.analyze_builtin_attribute(name, kinds)?])
             }
-            Statement::InternalDefinition(name, params, body, return_kind, span, line) => {
+            Statement::InternalDefinition(name, params, body, return_kind, _, _) => {
                 let result = self.analyze_internal_definition(name, params, body, return_kind)?;
                 self.analyze_control_flow(&result);
                 Ok(vec![result])
             }
-            Statement::DestructurePattern(fields, value, span, line) => {
+            Statement::DestructurePattern(fields, value, _, _) => {
                 Ok(self.analyze_destructure_pattern(fields, value)?)
             }
             Statement::Scope(stmts, span, line) => {
@@ -105,7 +107,7 @@ impl SemanticAnalyzer {
                     *line,
                 )])
             }
-            Statement::Import(module, span, line) => {
+            Statement::Import(module, _, _) => {
                 let result = self.analyze_import(module);
 
                 match result {
@@ -148,7 +150,7 @@ impl SemanticAnalyzer {
                     SemanticValue::new(Some(field_kind), ValueWrapper::Internal, field.line),
                 );
 
-                let get_kind = self.resolve_expr_type(&Expression::Get(
+                let _get_kind = self.resolve_expr_type(&Expression::Get(
                     Rc::new(value.clone()),
                     field.clone(),
                     field.span,
@@ -237,7 +239,7 @@ impl SemanticAnalyzer {
 
         let source = match read_file_without_bom(full_path.to_str().unwrap()) {
             Ok(s) => s,
-            Err(e) => {
+            Err(_) => {
                 return Err(CompilationError::with_span(
                     CompilationErrorKind::ModuleReadError {
                         path: module.iter().map(|t| t.lexeme.clone()).collect(),
@@ -575,11 +577,7 @@ impl SemanticAnalyzer {
                     Ok(AnnotatedStatement::If(
                         keyword.clone(),
                         annotated_condition,
-                        Box::new(AnnotatedStatement::Scope(
-                            annotated_body,
-                            *span,
-                            *line,
-                        )),
+                        Box::new(AnnotatedStatement::Scope(annotated_body, *span, *line)),
                         Some(Box::new(annotated_else_branch)),
                         *span,
                         *line,
@@ -676,7 +674,7 @@ impl SemanticAnalyzer {
     /// # Returns
     ///
     /// An `AnnotatedStatement::ForEach` containing the analyzed loop structure.
-    pub(super) fn analyze_iterator(
+    pub(super) fn _analyze_iterator(
         &mut self,
         variable: &Token,
         condition: &Expression,
@@ -688,18 +686,19 @@ impl SemanticAnalyzer {
         let iterator_kind: Rc<RefCell<TypeDescriptor>>;
 
         match condition {
-            Expression::Variable(variable, span) => {
+            Expression::Variable(variable, _) => {
                 self.assert_archetype_kind(
                     condition,
                     self.get_static_kind_by_name("iterator", condition)?,
                     "Expect iterator in 'for' loop.",
                 )?;
 
-                iterator_kind = self.resolve_identifier_type(variable)?;
+                // iterator_kind =
+                self.resolve_identifier_type(variable)?;
                 annotated_iterator = self.analyze_expr(condition)?;
             }
 
-            Expression::Call(callee, paren, args, span) => {
+            Expression::Call(callee, paren, args, _) => {
                 iterator_kind = self.resolve_function_return_type(callee, paren, args)?;
                 self.assert_kind_equals(
                     iterator_kind.clone(),
@@ -711,7 +710,8 @@ impl SemanticAnalyzer {
             }
 
             _ => {
-                iterator_kind = self.resolve_iterator_kind(condition)?;
+                // iterator_kind =
+                self.resolve_iterator_kind(condition)?;
                 annotated_iterator = self.analyze_expr(condition)?;
             }
         }
@@ -767,16 +767,14 @@ impl SemanticAnalyzer {
         let ctx_name = self.context().name(&name.lexeme);
 
         match ctx_name {
-            Some(sm) => {
-                Err(CompilationError::with_span(
-                    CompilationErrorKind::DuplicatedVariable {
-                        name: name.lexeme.clone(),
-                        previous: sm.line,
-                    },
-                    Some(name.line),
-                    name.span,
-                ))
-            }
+            Some(sm) => Err(CompilationError::with_span(
+                CompilationErrorKind::DuplicatedVariable {
+                    name: name.lexeme.clone(),
+                    previous: sm.line,
+                },
+                Some(name.line),
+                name.span,
+            )),
             None => match value {
                 Some(expr) => {
                     let annotated_value = self.analyze_expr(expr)?;
@@ -822,7 +820,7 @@ impl SemanticAnalyzer {
     pub(super) fn analyze_native_function(
         &mut self,
         name: &Token,
-        params: &Vec<FieldDeclaration>,
+        params: &[FieldDeclaration],
         return_kind: &Expression,
     ) -> TyResult<AnnotatedStatement> {
         self.require_depth(
@@ -835,7 +833,7 @@ impl SemanticAnalyzer {
             ),
         )?;
 
-        if let Some(f) = self.get_native_function(&name.lexeme) {
+        if let Some(_) = self.get_native_function(&name.lexeme) {
             return Err(CompilationError::with_span(
                 CompilationErrorKind::DuplicatedNativeFunction {
                     name: name.lexeme.clone(),
@@ -849,10 +847,10 @@ impl SemanticAnalyzer {
 
         let kind: Rc<RefCell<TypeDescriptor>>;
 
-        if let Expression::TypeComposition(mask, span) = return_kind {
+        if let Expression::TypeComposition(mask, _) = return_kind {
             kind = self.resolve_type_composition(mask)?;
         } else {
-            kind = self.get_static_kind_by_name("void", return_kind)?;
+            // kind = self.get_static_kind_by_name("void", return_kind)?;
 
             return Err(CompilationError::new(
                 CompilationErrorKind::MissingConstruction {
@@ -864,7 +862,7 @@ impl SemanticAnalyzer {
 
         let function_definition = FunctionPrototype::new(
             name.lexeme.clone(),
-            params.clone(),
+            params.to_owned(),
             params.len(),
             kind.clone(),
         );
@@ -903,7 +901,7 @@ impl SemanticAnalyzer {
     fn analyze_function(
         &mut self,
         name: &Token,
-        params: &Vec<FieldDeclaration>,
+        params: &[FieldDeclaration],
         body: &Statement,
         return_kind: &Expression,
     ) -> TyResult<AnnotatedStatement> {
@@ -921,10 +919,10 @@ impl SemanticAnalyzer {
 
         let kind: Rc<RefCell<TypeDescriptor>>;
 
-        if let Expression::TypeComposition(mask, span) = return_kind {
+        if let Expression::TypeComposition(mask, _) = return_kind {
             kind = self.resolve_type_composition(mask)?;
         } else {
-            kind = self.get_static_kind_by_name("void", return_kind)?;
+            // kind = self.get_static_kind_by_name("void", return_kind)?;
 
             return Err(CompilationError::with_span(
                 CompilationErrorKind::MissingConstruction {
@@ -937,7 +935,7 @@ impl SemanticAnalyzer {
 
         let function_definition = FunctionPrototype::new(
             name.lexeme.clone(),
-            params.clone(),
+            params.to_owned(),
             params.len(),
             kind.clone(),
         );
@@ -1091,8 +1089,7 @@ impl SemanticAnalyzer {
 
             match value {
                 None => {
-                    if let Ordering::Equal =
-                        expected_return.borrow().name.cmp(&"void".to_string())
+                    if let Ordering::Equal = expected_return.borrow().name.cmp(&"void".to_string())
                     {
                         Ok(AnnotatedStatement::Return(None, keyword.span, keyword.line))
                     } else {
@@ -1150,7 +1147,7 @@ impl SemanticAnalyzer {
         &mut self,
         name: &Token,
         archetypes: &Vec<Token>,
-        fields: &Vec<FieldDeclaration>,
+        fields: &[FieldDeclaration],
     ) -> TyResult<AnnotatedStatement> {
         self.require_depth(
             Ordering::Less,
@@ -1162,7 +1159,7 @@ impl SemanticAnalyzer {
             ),
         )?;
 
-        if let Some(kind) = self.symbol_table.names.get(&name.lexeme) {
+        if let Some(_) = self.symbol_table.names.get(&name.lexeme) {
             return Err(CompilationError::with_span(
                 CompilationErrorKind::DuplicatedTypeDefinition {
                     r#type: name.lexeme.clone(),
@@ -1196,7 +1193,7 @@ impl SemanticAnalyzer {
         let mut type_fields: HashMap<String, FieldDescriptor> = HashMap::new();
 
         for (index, field) in fields.iter().enumerate() {
-            if let Expression::TypeComposition(mask, span) = field.kind.clone() {
+            if let Expression::TypeComposition(mask, _) = field.kind.clone() {
                 let kind = self.resolve_type_composition(&mask)?;
                 let archetypes: Vec<Archetype> =
                     kind.borrow().archetypes.clone().into_iter().collect();
@@ -1231,7 +1228,7 @@ impl SemanticAnalyzer {
 
         let constructor = FunctionPrototype::new(
             name.lexeme.clone(),
-            fields.clone(),
+            fields.to_owned(),
             type_fields.len(),
             self.get_user_defined_kind(name.lexeme.clone()),
         );
@@ -1300,7 +1297,7 @@ impl SemanticAnalyzer {
                 ))
             }
 
-            Statement::NativeFunction(name, args, return_kind, span, line) => {
+            Statement::NativeFunction(_, _, _, span, line) => {
                 self.current_decorator = Decorator::new(attribute_usages);
                 Ok(AnnotatedStatement::Decorator(
                     hash_token.clone(),
