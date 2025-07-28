@@ -119,5 +119,5 @@ fn compile(args: &CompileArgs) -> Result<()> {
 fn version() {
     let _ascii_art = include_str!("../../assets/ascii-art.txt");
     // println!("\n{}", _ascii_art);
-    println!("Skyl {} {}", VERSION, CODENAME);
+    println!("Skyl {VERSION} {CODENAME}");
 }

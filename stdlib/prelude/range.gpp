@@ -33,7 +33,6 @@ def step(begin: int, end: int, step: int) -> RangeIterator {
 }
 
 internal def skip(self: RangeIterator, n: int) -> RangeIterator {
-    // Retorna um novo iterator com skip configurado
     return RangeIterator(self.current, self.range, false, n);
 }
 

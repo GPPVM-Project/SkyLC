@@ -172,6 +172,7 @@ pub enum CompilationErrorKind {
         function_kind: String,
         name: String,
     },
+    MainFunctionReturnKind,
 }
 
 #[derive(Debug)]

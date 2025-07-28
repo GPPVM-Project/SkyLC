@@ -324,11 +324,20 @@ impl SemanticAnalyzer {
             self.advance();
         }
 
-        if self.get_function("main") == None {
+        let main_fn = self.get_function("main");
+
+        if main_fn == None {
             self.report_error(CompilationError::new(
                 CompilationErrorKind::MissingMainFunction,
                 None,
             ));
+        } else {
+            if main_fn.unwrap().return_kind.borrow().name != "void" {
+                self.report_error(CompilationError::new(
+                    CompilationErrorKind::MainFunctionReturnKind,
+                    None,
+                ));
+            }
         }
 
         SemanticCode::new(

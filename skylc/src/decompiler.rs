@@ -118,8 +118,7 @@ impl Decompiler {
                         let arity = code[*index + 9];
 
                         println!(
-                            "{}  {} V{} Fn{}   ; ({} args)",
-                            instr_index, padded_instruction, vtable_index, function_index, arity
+                            "{instr_index}  {padded_instruction} V{vtable_index} Fn{function_index}   ; ({arity} args)"
                         );
 
                         *index += 9;
@@ -136,8 +135,7 @@ impl Decompiler {
                         let arity = code[*index + 5];
 
                         println!(
-                            "{}  {} {}   ; ({} args)",
-                            instr_index, padded_instruction, function_index, arity
+                            "{instr_index}  {padded_instruction} {function_index}   ; ({arity} args)"
                         );
                         *index += 5;
                     }
@@ -145,14 +143,14 @@ impl Decompiler {
                     Instruction::New => {
                         let arity = code[*index + 1];
 
-                        println!("{}  {} {}", instr_index, padded_instruction, arity);
+                        println!("{instr_index}  {padded_instruction} {arity}");
                         *index += 1;
                     }
 
                     Instruction::GetField | Instruction::SetField | Instruction::Array => {
                         let field_index = code[*index + 1];
 
-                        println!("{}  {} {}", instr_index, padded_instruction, field_index);
+                        println!("{instr_index}  {padded_instruction} {field_index}");
                         *index += 1;
                     }
 
@@ -167,11 +165,11 @@ impl Decompiler {
                             code[*index + 4],
                         );
 
-                        println!("{}  {}     ; {}", instr_index, padded_instruction, offset);
+                        println!("{instr_index}  {padded_instruction}     ; {offset}");
                         *index += 4;
                     }
                     _ => {
-                        println!("{}  {}", instr_index, padded_instruction);
+                        println!("{instr_index}  {padded_instruction}");
                     }
                 }
             }
@@ -183,10 +181,8 @@ impl Decompiler {
 
     fn decompile_native_function(name: &str, id: u32) {
         let width = 60;
-        println!(
-            "{}",
-            format!("{:=^1$}", format!(" {} (native_id = {}) ", name, id), width)
-        );
+        let fmt_native_fn = format!("{:=^1$}", format!(" {} (native_id = {}) ", name, id), width);
+        println!("{fmt_native_fn}");
         println!("{}", "=".repeat(width));
         println!("\n");
     }
@@ -200,22 +196,21 @@ impl Decompiler {
         for method in info {
             let width = 60;
 
-            println!(
-                "{}",
+            let formated_line = format!(
+                "{:=^1$}",
                 format!(
-                    "{:=^1$}",
-                    format!(
-                        " {} Fn{} (type = {}, id {}, arity = {}) ",
-                        method.name, method.id, descriptor.name, descriptor.id, method.arity
-                    ),
-                    width
-                )
+                    " {} Fn{} (type = {}, id {}, arity = {}) ",
+                    method.name, method.id, descriptor.name, descriptor.id, method.arity
+                ),
+                width
             );
+
+            println!("{formated_line}",);
 
             index = 0;
 
             while index < method.chunk.code.len() {
-                Decompiler::decompile_instruction(&mut index, &method.chunk, &ir);
+                Decompiler::decompile_instruction(&mut index, &method.chunk, ir);
             }
 
             println!("{}", "=".repeat(width));

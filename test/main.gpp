@@ -1,14 +1,11 @@
-def test() -> int {
-   for i in step(20, 0, -5).skip(2) {
-      return 0;
+def test() -> int {   
+   if 2 > 1 {
+      return 1;
    }
-   return 0;
+
+   // Missing return
 }
 
-def main() -> int {
-   for i in step(20, 0, -5).skip(2) {
-      return 0;
-   }
+def main() -> void {
 
-   return test();
 }

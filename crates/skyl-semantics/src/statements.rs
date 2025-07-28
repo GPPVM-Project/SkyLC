@@ -1324,15 +1324,13 @@ impl SemanticAnalyzer {
 
             Statement::EndCode => Ok(AnnotatedStatement::EndCode),
 
-            _ => {
-                return Err(CompilationError::with_span(
-                    CompilationErrorKind::InvalidStatementUsage {
-                        error: format!("Decorators are only accepted in function signatures.",),
-                    },
-                    Some(hash_token.line),
-                    hash_token.span,
-                ));
-            }
+            _ => Err(CompilationError::with_span(
+                CompilationErrorKind::InvalidStatementUsage {
+                    error: format!("Decorators are only accepted in function signatures.",),
+                },
+                Some(hash_token.line),
+                hash_token.span,
+            )),
         }
     }
 }

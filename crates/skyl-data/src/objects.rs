@@ -100,7 +100,7 @@ impl Eq for dyn Object {}
 
 impl Debug for dyn Object {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&String::from(format!("{:?}", self)))
+        f.write_str(&String::from(format!("{:?}", self.to_string())))
     }
 }
 
