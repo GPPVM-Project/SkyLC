@@ -166,7 +166,7 @@ impl Parser {
             },
         )?;
 
-        let return_kind: Expression;
+        
 
         self.eat(
             TokenKind::Operator(OperatorKind::Arrow),
@@ -176,7 +176,7 @@ impl Parser {
             },
         )?;
 
-        return_kind = self.type_composition()?;
+        let return_kind: Expression = self.type_composition()?;
 
         self.eat(
             TokenKind::Punctuation(PunctuationKind::LeftBrace),
@@ -433,7 +433,7 @@ impl Parser {
             "function params",
         )?;
 
-        let return_kind: Expression;
+        
 
         self.eat(
             TokenKind::Operator(OperatorKind::Arrow),
@@ -444,7 +444,7 @@ impl Parser {
             },
         )?;
 
-        return_kind = self.type_composition()?;
+        let return_kind: Expression = self.type_composition()?;
 
         let end_span = self
             .expect_token(
@@ -598,7 +598,7 @@ impl Parser {
             "function params",
         )?;
 
-        let return_kind: Expression;
+        
 
         self.eat(
             TokenKind::Operator(OperatorKind::Arrow),
@@ -609,7 +609,7 @@ impl Parser {
             },
         )?;
 
-        return_kind = self.type_composition()?;
+        let return_kind: Expression = self.type_composition()?;
 
         self.expect_token(
             TokenKind::Punctuation(PunctuationKind::LeftBrace),
@@ -815,11 +815,10 @@ impl Parser {
 
         let scope = self.parse_scope()?;
 
-        if let Statement::Scope(stmts, _, _) = &scope {
-            if stmts.is_empty() {
+        if let Statement::Scope(stmts, _, _) = &scope
+            && stmts.is_empty() {
                 return Ok(scope);
             }
-        }
 
         let full_loop_span = start_token.span.merge(scope.span());
 
@@ -1253,7 +1252,7 @@ impl Parser {
             ));
         }
 
-        Ok(self.call()?)
+        self.call()
     }
 
     fn call(&mut self) -> Result<Expression, ParseError> {
@@ -1270,8 +1269,8 @@ impl Parser {
             expr = Expression::ListGet(Box::new(expr), Box::new(index), combined_span);
         }
 
-        if let Expression::Variable(_, _) = &expr {
-            if self.try_eat(&[
+        if let Expression::Variable(_, _) = &expr
+            && self.try_eat(&[
                 TokenKind::Operator(OperatorKind::PostFixIncrement),
                 TokenKind::Operator(OperatorKind::PostFixDecrement),
             ]) {
@@ -1279,7 +1278,6 @@ impl Parser {
                 let combined_span = expr.span().merge(op.span);
                 return Ok(Expression::PostFix(op, Rc::new(expr), combined_span));
             }
-        }
 
         loop {
             if self.try_eat(&[TokenKind::Punctuation(PunctuationKind::LeftParen)]) {
@@ -1437,7 +1435,7 @@ impl Parser {
     ) -> Result<Expression, ParseError> {
         let start_span = self.previous().span;
         let mut values: Vec<Rc<Expression>> = Vec::new();
-        let end_token;
+        
 
         if !self.check(&[TokenKind::Punctuation(closing)]) {
             loop {
@@ -1451,7 +1449,7 @@ impl Parser {
             }
         }
 
-        end_token = self.eat(TokenKind::Punctuation(closing), err)?;
+        let end_token = self.eat(TokenKind::Punctuation(closing), err)?;
 
         let combined_span = start_span.merge(end_token.span);
 
@@ -1641,11 +1639,11 @@ impl Parser {
             )?
             .span;
 
-        return Ok(Statement::DestructurePattern(
+        Ok(Statement::DestructurePattern(
             names,
             value,
             start_span.merge(end_span),
             start_token.line,
-        ));
+        ))
     }
 }
