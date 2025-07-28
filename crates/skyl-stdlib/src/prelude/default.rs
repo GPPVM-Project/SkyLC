@@ -11,10 +11,7 @@ pub struct GPPDefaultFunctionsNativeLibrary;
 impl GPPDefaultFunctionsNativeLibrary {
     fn int(args: Vec<Value>) -> Value {
         match &args[0] {
-            Value::String(s) => Value::Int(s.trim().parse().expect(&format!(
-                "str to int parse error. Input was '{}'",
-                s.to_string()
-            ))),
+            Value::String(s) => Value::Int(s.trim().parse().unwrap_or_else(|_| panic!("str to int parse error. Input was '{s}'"))),
             Value::Int(i) => Value::Int(*i),
             _ => {
                 unreachable!()
@@ -40,7 +37,7 @@ impl GPPDefaultFunctionsNativeLibrary {
 
     fn exception(args: Vec<Value>) -> Value {
         if let Value::String(s) = &args[0] {
-            eprintln!("{}", s);
+            eprintln!("{s}");
             std::process::exit(-1);
         }
 

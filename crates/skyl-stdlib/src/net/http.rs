@@ -44,16 +44,16 @@ impl GPPHttpLibrary {
                 let status = resp.status().as_u16() as i32;
                 match resp.body_mut().read_to_string() {
                     Ok(response_body_str) => {
-                        let full_response = format!("{}\n{}", status, response_body_str);
+                        let full_response = format!("{status}\n{response_body_str}");
                         Value::String(Rc::new(full_response))
                     }
                     Err(e) => {
-                        Value::String(Rc::new(format!("Failed to read response body: {}", e)))
+                        Value::String(Rc::new(format!("Failed to read response body: {e}")))
                     }
                 }
             }
             Err(e) => {
-                let message = format!("Request error: {}", e);
+                let message = format!("Request error: {e}");
                 Value::String(Rc::new(message))
             }
         }

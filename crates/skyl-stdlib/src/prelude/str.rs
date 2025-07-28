@@ -93,7 +93,7 @@ impl GPPStringNativeLibrary {
     fn str_replace(args: Vec<Value>) -> Value {
         match (&args[0], &args[1], &args[2]) {
             (Value::String(a), Value::String(from), Value::String(to)) => {
-                Value::String(Rc::new(a.replace(&**from, &**to)))
+                Value::String(Rc::new(a.replace(&**from, to)))
             }
             _ => unreachable!("str_replace expects three strings"),
         }

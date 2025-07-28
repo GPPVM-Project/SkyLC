@@ -15,7 +15,7 @@ pub struct GPPStdIOLibrary;
 impl GPPStdIOLibrary {
     pub fn print(args: Vec<Value>) -> Value {
         if let Some(val) = args.first() {
-            print!("{}", val);
+            print!("{val}");
             io::stdout().flush().unwrap();
         }
         Value::Void
@@ -23,14 +23,14 @@ impl GPPStdIOLibrary {
 
     pub fn println(args: Vec<Value>) -> Value {
         if let Some(val) = args.first() {
-            println!("{}", val);
+            println!("{val}");
         }
         Value::Void
     }
 
     pub fn debug(args: Vec<Value>) -> Value {
         if let Some(val) = args.first() {
-            eprintln!("[DEBUG] {}", val);
+            eprintln!("[DEBUG] {val}");
         }
         Value::Void
     }
@@ -72,7 +72,7 @@ impl GPPStdIOLibrary {
                 .to_str()
                 .unwrap_or(""),
             std::path::MAIN_SEPARATOR,
-            env::args().into_iter().collect::<Vec<String>>()[2].as_str()
+            env::args().collect::<Vec<String>>()[2].as_str()
         );
 
         let full_path = PathBuf::from(&current_path);
@@ -83,16 +83,16 @@ impl GPPStdIOLibrary {
             .unwrap()
             .to_path_buf();
 
-        let absolute_path = root.join(&path);
+        
 
-        return absolute_path;
+        root.join(&path)
     }
 
     pub fn read_file(args: Vec<Value>) -> Value {
         if let Some(Value::String(path)) = args.first() {
             let path = Self::get_full_path(path.to_string());
 
-            match read_file_without_bom(&path.to_str().unwrap()) {
+            match read_file_without_bom(path.to_str().unwrap()) {
                 Ok(file) => Value::String(Rc::new(file.content)),
                 Err(e) => {
                     gpp_error!("Cannot read file '{}': {}", path.to_str().unwrap(), e);
