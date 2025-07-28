@@ -41,7 +41,7 @@ impl NativeBridge for VirtualMachine {
                 let index = info.id;
 
                 if self.config.verbose {
-                    println!("Linking: {} function.", name);
+                    println!("Linking: {name} function.");
                 }
 
                 self.native_functions[index as usize] = NativeFunction::new(func, info.arity);
@@ -64,7 +64,9 @@ impl VirtualMachine {
     pub fn new(config: &CompilerConfig) -> Self {
         let heap = Heap::new(INITIAL_HEAP_SIZE);
 
-        let vm = Self {
+        
+
+        Self {
             ip: 0,
             sp: 0,
             fp: 0,
@@ -77,9 +79,7 @@ impl VirtualMachine {
             unsafe_mode: true,
             heap,
             halted: false,
-        };
-
-        vm
+        }
     }
 
     #[inline]
@@ -395,10 +395,7 @@ impl VirtualMachine {
 
         self.sp -= arity;
 
-        let fields = self.stack[self.sp..self.sp + arity]
-            .iter()
-            .cloned()
-            .collect::<Vec<_>>();
+        let fields = self.stack[self.sp..self.sp + arity].to_vec();
 
         let obj = Value::Object(Rc::new(RefCell::new(Instance::new(fields))));
         self.push(obj);
@@ -409,10 +406,10 @@ impl VirtualMachine {
         let value = self.pop();
 
         match value {
-            Value::Bool(b) => println!("{}", b),
-            Value::Int(i) => println!("{}", i),
-            Value::Float(f) => println!("{}", f),
-            Value::String(s) => println!("{}", s),
+            Value::Bool(b) => println!("{b}"),
+            Value::Int(i) => println!("{i}"),
+            Value::Float(f) => println!("{f}"),
+            Value::String(s) => println!("{s}"),
             Value::Object(obj) => {
                 println!("{}", obj.borrow().to_string());
             }
@@ -424,7 +421,7 @@ impl VirtualMachine {
     pub fn handle_set_local(&mut self) {
         let value = self.pop();
         let index = self.fp + (self.read_byte() as usize);
-        self.stack[index as usize] = value;
+        self.stack[index] = value;
     }
 
     #[inline]
@@ -470,7 +467,7 @@ impl VirtualMachine {
         let value = &self.stack[index];
 
         if let Value::Int(i) = value {
-            self.stack[index as usize] = Value::Int(i + 1);
+            self.stack[index] = Value::Int(i + 1);
         }
     }
 
@@ -484,7 +481,7 @@ impl VirtualMachine {
         } else {
             print!("VM Debug Data: ");
             self.print_stack();
-            panic!("Cannot decrement '{}' value.", value);
+            panic!("Cannot decrement '{value}' value.");
         }
     }
 
@@ -561,11 +558,10 @@ impl VirtualMachine {
         let offset = self.read_u32();
         let value = self.pop();
 
-        if let Value::Bool(b) = value {
-            if !b {
+        if let Value::Bool(b) = value
+            && !b {
                 self.ip += offset as usize;
             }
-        }
     }
 
     #[inline]
@@ -573,11 +569,10 @@ impl VirtualMachine {
         let offset = self.read_u32();
         let value = self.pop();
 
-        if let Value::Bool(b) = value {
-            if b {
+        if let Value::Bool(b) = value
+            && b {
                 self.ip += offset as usize;
             }
-        }
     }
 
     #[inline]
@@ -702,7 +697,7 @@ impl VirtualMachine {
             if self.halted {
                 println!(
                     "Process finished with code {}.",
-                    self.stack[self.fp].to_string()
+                    self.stack[self.fp]
                 );
                 break;
             }
@@ -754,14 +749,14 @@ impl VirtualMachine {
                     self.handle_halt();
                     break;
                 }
-                _ => panic!("Unimplemented instruction: {:?}", instruction),
+                _ => panic!("Unimplemented instruction: {instruction:?}"),
             }
         }
     }
 
     fn pop(&mut self) -> Value {
         self.sp -= 1;
-        std::mem::replace(&mut self.stack[self.sp as usize], Value::Void)
+        std::mem::replace(&mut self.stack[self.sp], Value::Void)
     }
 
     fn read_u16(&mut self) -> u16 {
@@ -776,10 +771,10 @@ impl VirtualMachine {
         let byte3 = self.read_byte();
         let byte4 = self.read_byte();
 
-        return ((byte1 as u32) << 24)
+        ((byte1 as u32) << 24)
             | ((byte2 as u32) << 16)
             | ((byte3 as u32) << 8)
-            | (byte4 as u32);
+            | (byte4 as u32)
     }
 
     fn read_byte(&mut self) -> u8 {

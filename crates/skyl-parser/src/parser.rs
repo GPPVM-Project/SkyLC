@@ -66,13 +66,8 @@ impl Parser {
                     self.statement()
                 }
             },
-            TokenKind::Punctuation(punctuation) => match punctuation {
-                PunctuationKind::Hash => self.decorator_declaration(),
-                _ => {
-                    self.backtrack();
-                    self.statement()
-                }
-            },
+            TokenKind::Punctuation(PunctuationKind::Hash) => self.decorator_declaration(),
+
             _ => {
                 self.backtrack();
                 self.statement()
@@ -764,14 +759,8 @@ impl Parser {
                     self.peek().span,
                 )),
             },
-            TokenKind::Punctuation(punctuation) => match punctuation {
-                PunctuationKind::LeftBrace => self.parse_scope(),
+            TokenKind::Punctuation(PunctuationKind::LeftBrace) => self.parse_scope(),
 
-                _ => {
-                    self.backtrack();
-                    self.expression_statement()
-                }
-            },
             _ => {
                 self.backtrack();
                 self.expression_statement()
