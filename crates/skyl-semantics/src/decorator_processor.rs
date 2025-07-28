@@ -4,17 +4,14 @@ use skyl_data::{
     BuiltinAttributeUsage, CoersionKind, Decorator, Expression, FunctionPrototype, Literal,
     Operator, Span, Token, TokenKind, ValueWrapper,
 };
-use skyl_driver::{
-    errors::{CompilationError, CompilationErrorKind},
-    gpp_error,
-};
+use skyl_driver::errors::{CompilationError, CompilationErrorKind};
 
 use crate::{SemanticAnalyzer, result::TyResult};
 
-pub const ADD_NAME: &'static str = "+";
-pub const SUB_NAME: &'static str = "-";
-pub const MULTIPLY_NAME: &'static str = "*";
-pub const DIV_NAME: &'static str = "/";
+pub const ADD_NAME: &str = "+";
+pub const SUB_NAME: &str = "-";
+pub const MULTIPLY_NAME: &str = "*";
+pub const DIV_NAME: &str = "/";
 
 impl SemanticAnalyzer {
     pub(super) fn process_internal_definition(

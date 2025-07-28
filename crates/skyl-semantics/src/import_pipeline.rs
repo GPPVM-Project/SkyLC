@@ -1,4 +1,3 @@
-use skyl_data::TokenStream;
 use skyl_driver::Pipeline;
 use skyl_lexer::Lexer;
 use skyl_parser::Parser;

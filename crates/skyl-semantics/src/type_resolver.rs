@@ -41,7 +41,7 @@ impl SemanticAnalyzer {
                 },
                 _ => gpp_error!("Expect literal in line {}.", token.line),
             },
-            Expression::Unary(_, expression, span) => self.resolve_expr_type(&expression),
+            Expression::Unary(_, expression, span) => self.resolve_expr_type(expression),
             Expression::Arithmetic(left, op, right, span) => {
                 if let TokenKind::Operator(operator) = op.kind {
                     match operator {
@@ -49,7 +49,7 @@ impl SemanticAnalyzer {
                         | OperatorKind::Minus
                         | OperatorKind::Star
                         | OperatorKind::Slash => {
-                            let left_type = self.resolve_expr_type(&left)?;
+                            let left_type = self.resolve_expr_type(left)?;
                             let right_type = self.resolve_expr_type(right)?;
 
                             let number_arch = Archetype {
@@ -68,7 +68,7 @@ impl SemanticAnalyzer {
                                 other: right_type.borrow().id,
                             };
 
-                            if let Some(op) = self.symbol_table.operators.get(&operator) {
+                            if let Some(op) = self.symbol_table.operators.get(operator) {
                                 let left_type_borrow = left_type.borrow();
                                 let operator_function = left_type_borrow.methods.get(op).unwrap();
 
@@ -110,16 +110,16 @@ impl SemanticAnalyzer {
                     }
                 }
 
-                return Err(CompilationError::with_span(
+                Err(CompilationError::with_span(
                     CompilationErrorKind::InvalidExpression {
                         msg: format!("Invalid arithmetic operator '{}'", op.lexeme),
                     },
                     Some(op.line),
                     op.span,
-                ));
+                ))
             }
             Expression::Logical(left, _, _, span) => {
-                let left_type = self.resolve_expr_type(&left)?;
+                let left_type = self.resolve_expr_type(left)?;
 
                 if left_type != self.get_symbol("bool").unwrap().kind {
                     gpp_error!("Expected boolean type for logical expression.");
@@ -127,9 +127,9 @@ impl SemanticAnalyzer {
                 Ok(left_type)
             }
             Expression::Ternary(cond, true_expr, false_expr, span) => {
-                let cond_type = self.resolve_expr_type(&cond)?;
-                let true_type = self.resolve_expr_type(&true_expr)?;
-                let false_type = self.resolve_expr_type(&false_expr)?;
+                let cond_type = self.resolve_expr_type(cond)?;
+                let true_type = self.resolve_expr_type(true_expr)?;
+                let false_type = self.resolve_expr_type(false_expr)?;
 
                 if true_type != false_type {
                     gpp_error!("Types of both branches of the ternary expression must match.");
@@ -146,7 +146,7 @@ impl SemanticAnalyzer {
                 self.resolve_function_return_type(callee, paren, args)
             }
             Expression::Get(object, token, span) => self.resolve_get_expr(object, token),
-            Expression::Group(expression, span) => self.resolve_expr_type(&expression),
+            Expression::Group(expression, span) => self.resolve_expr_type(expression),
             Expression::Void => Ok(self.get_void_instance()),
             Expression::ListGet(list, index, span) => self.resolve_list_get_type(list, index),
             _ => gpp_error!("Expression {expression:?} are not supported."),
@@ -186,7 +186,7 @@ impl SemanticAnalyzer {
         if let Expression::Variable(name, span) = current_expression {
             path.push(name.clone());
         } else {
-            current_kind = Some(Rc::clone(&self.resolve_expr_type(&current_expression)?));
+            current_kind = Some(Rc::clone(&self.resolve_expr_type(current_expression)?));
             is_literal = true;
         }
 
@@ -228,7 +228,7 @@ impl SemanticAnalyzer {
                 };
             }
         } else {
-            current_kind = match self.get_name_in_depth(&path[0])? {
+            current_kind = match self.get_name_in_depth(path[0])? {
                 None => {
                     gpp_error!("The kind of {} is not known here.", &path[0].lexeme);
                 }
@@ -323,7 +323,7 @@ impl SemanticAnalyzer {
         let mut common_archetypes: HashSet<Archetype> = first_type.borrow().archetypes.clone();
 
         for element in &elements[1..] {
-            let element_type = self.resolve_expr_type(&element)?;
+            let element_type = self.resolve_expr_type(element)?;
             common_archetypes.retain(|arch| element_type.borrow().archetypes.contains(arch));
         }
 
@@ -393,7 +393,7 @@ impl SemanticAnalyzer {
         let expr_kind = self.resolve_expr_type(iterator);
 
         match iterator {
-            Expression::List(elements, span) => self.resolve_list_type(&elements),
+            Expression::List(elements, span) => self.resolve_list_type(elements),
             Expression::Call(callee, paren, args, span) => {
                 self.analyze_call_expression(callee, paren, args)?;
                 self.resolve_function_return_type(callee, paren, args)
@@ -479,11 +479,11 @@ impl SemanticAnalyzer {
                 Literal::String => Ok(self.symbol_table.get("str").unwrap().kind.clone()),
             }
         } else {
-            return Err(CompilationError::with_span(
+            Err(CompilationError::with_span(
                 CompilationErrorKind::InvalidLiteral { line: literal.line },
                 Some(literal.line),
                 literal.span,
-            ));
+            ))
         }
     }
 }

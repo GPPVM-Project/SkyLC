@@ -43,8 +43,8 @@ impl SemanticAnalyzer {
             }
             Statement::Expression(expr, span, line) => Ok(vec![AnnotatedStatement::Expression(
                 self.analyze_expr(expr)?,
-                span.clone(),
-                line.clone(),
+                *span,
+                *line,
             )]),
             Statement::Decorator(hash_token, attribs, span, line) => {
                 Ok(vec![self.analyze_decorator(hash_token, attribs)?])
@@ -54,7 +54,7 @@ impl SemanticAnalyzer {
                 Ok(vec![result?])
             }
             Statement::Function(name, params, body, return_kind, span, line) => {
-                let result = self.analyze_function(name, params, &body, return_kind)?;
+                let result = self.analyze_function(name, params, body, return_kind)?;
                 self.analyze_control_flow(&result);
                 Ok(vec![result])
             }
@@ -76,7 +76,7 @@ impl SemanticAnalyzer {
                 Ok(vec![self.analyze_if_stmt(
                     keyword,
                     condition,
-                    &body,
+                    body,
                     else_branch,
                 )?])
             }
@@ -101,8 +101,8 @@ impl SemanticAnalyzer {
 
                 Ok(vec![AnnotatedStatement::Scope(
                     boxed_statements,
-                    span.clone(),
-                    line.clone(),
+                    *span,
+                    *line,
                 )])
             }
             Statement::Import(module, span, line) => {
@@ -469,8 +469,8 @@ impl SemanticAnalyzer {
         Ok(AnnotatedStatement::BuiltinAttribute(
             name.clone(),
             att_kinds,
-            name.span.clone(),
-            name.line.clone(),
+            name.span,
+            name.line,
         ))
     }
 
@@ -528,7 +528,7 @@ impl SemanticAnalyzer {
             _ => {
                 return Err(CompilationError::new(
                     CompilationErrorKind::InvalidStatementScope {
-                        statement: format!("{:?}", body),
+                        statement: format!("{body:?}"),
                     },
                     None,
                 ));
@@ -562,28 +562,28 @@ impl SemanticAnalyzer {
                         )),
                         Some(Box::new(AnnotatedStatement::Scope(
                             annotated_else,
-                            span.clone(),
-                            line.clone(),
+                            *span,
+                            *line,
                         ))),
-                        span.clone(),
-                        line.clone(),
+                        *span,
+                        *line,
                     ))
                 }
                 Statement::If(keyword, condition, body, else_branch, span, line) => {
                     let annotated_else_branch =
                         self.analyze_if_stmt(keyword, condition, body, else_branch)?;
-                    return Ok(AnnotatedStatement::If(
+                    Ok(AnnotatedStatement::If(
                         keyword.clone(),
                         annotated_condition,
                         Box::new(AnnotatedStatement::Scope(
                             annotated_body,
-                            span.clone(),
-                            line.clone(),
+                            *span,
+                            *line,
                         )),
                         Some(Box::new(annotated_else_branch)),
-                        span.clone(),
-                        line.clone(),
-                    ));
+                        *span,
+                        *line,
+                    ))
                 }
                 _ => gpp_error!("Statement {:?} is not allowed here.", stmt),
             },
@@ -768,14 +768,14 @@ impl SemanticAnalyzer {
 
         match ctx_name {
             Some(sm) => {
-                return Err(CompilationError::with_span(
+                Err(CompilationError::with_span(
                     CompilationErrorKind::DuplicatedVariable {
                         name: name.lexeme.clone(),
                         previous: sm.line,
                     },
                     Some(name.line),
                     name.span,
-                ));
+                ))
             }
             None => match value {
                 Some(expr) => {
@@ -801,7 +801,7 @@ impl SemanticAnalyzer {
                         name.clone(),
                         Some(annotated_value),
                         name.span.merge(expr.span()),
-                        name.line.clone(),
+                        name.line,
                     ))
                 }
                 None => {
@@ -847,7 +847,7 @@ impl SemanticAnalyzer {
 
         self.current_symbol_kind = SymbolKind::Function;
 
-        let mut kind: Rc<RefCell<TypeDescriptor>>;
+        let kind: Rc<RefCell<TypeDescriptor>>;
 
         if let Expression::TypeComposition(mask, span) = return_kind {
             kind = self.resolve_type_composition(mask)?;
@@ -919,7 +919,7 @@ impl SemanticAnalyzer {
 
         self.current_symbol_kind = SymbolKind::Function;
 
-        let mut kind: Rc<RefCell<TypeDescriptor>>;
+        let kind: Rc<RefCell<TypeDescriptor>>;
 
         if let Expression::TypeComposition(mask, span) = return_kind {
             kind = self.resolve_type_composition(mask)?;
@@ -976,7 +976,7 @@ impl SemanticAnalyzer {
             _ => {
                 return Err(CompilationError::new(
                     CompilationErrorKind::InvalidStatementScope {
-                        statement: format!("{:?}", body),
+                        statement: format!("{body:?}"),
                     },
                     None,
                 ));
@@ -1082,54 +1082,52 @@ impl SemanticAnalyzer {
                         ));
                     }
 
-                    return Ok(AnnotatedStatement::Return(None, keyword.span, keyword.line));
+                    Ok(AnnotatedStatement::Return(None, keyword.span, keyword.line))
+                }
+            }
+        } else if let SymbolKind::InternalDefinition = self.current_symbol_kind {
+            let id = self.current_return_kind_id.unwrap();
+            let expected_return = self.get_static_kind_by_id(id);
+
+            match value {
+                None => {
+                    if let Ordering::Equal =
+                        expected_return.borrow().name.cmp(&"void".to_string())
+                    {
+                        Ok(AnnotatedStatement::Return(None, keyword.span, keyword.line))
+                    } else {
+                        Err(CompilationError::with_span(
+                            CompilationErrorKind::UnexpectedReturnValue {
+                                found: self.get_static_kind_by_id(id).borrow().name.clone(),
+                            },
+                            Some(keyword.line),
+                            keyword.span,
+                        ))
+                    }
+                }
+                Some(v) => {
+                    let return_kind = self.resolve_expr_type(v)?;
+
+                    if return_kind.borrow().id != expected_return.borrow().id {
+                        return Err(CompilationError::with_span(
+                            CompilationErrorKind::ExpectReturnType {
+                                expect: expected_return.borrow().name.clone(),
+                                found: return_kind.borrow().name.clone(),
+                            },
+                            Some(v.line()),
+                            v.span(),
+                        ));
+                    } else {
+                        Ok(AnnotatedStatement::Return(
+                            Some(self.analyze_expr(v)?),
+                            keyword.span.merge(v.span()),
+                            keyword.line,
+                        ))
+                    }
                 }
             }
         } else {
-            if let SymbolKind::InternalDefinition = self.current_symbol_kind {
-                let id = self.current_return_kind_id.unwrap();
-                let expected_return = self.get_static_kind_by_id(id);
-
-                match value {
-                    None => {
-                        if let Ordering::Equal =
-                            expected_return.borrow().name.cmp(&"void".to_string())
-                        {
-                            Ok(AnnotatedStatement::Return(None, keyword.span, keyword.line))
-                        } else {
-                            Err(CompilationError::with_span(
-                                CompilationErrorKind::UnexpectedReturnValue {
-                                    found: self.get_static_kind_by_id(id).borrow().name.clone(),
-                                },
-                                Some(keyword.line),
-                                keyword.span,
-                            ))
-                        }
-                    }
-                    Some(v) => {
-                        let return_kind = self.resolve_expr_type(v)?;
-
-                        if return_kind.borrow().id != expected_return.borrow().id {
-                            return Err(CompilationError::with_span(
-                                CompilationErrorKind::ExpectReturnType {
-                                    expect: expected_return.borrow().name.clone(),
-                                    found: return_kind.borrow().name.clone(),
-                                },
-                                Some(v.line()),
-                                v.span(),
-                            ));
-                        } else {
-                            Ok(AnnotatedStatement::Return(
-                                Some(self.analyze_expr(v)?),
-                                keyword.span.merge(v.span()),
-                                keyword.line,
-                            ))
-                        }
-                    }
-                }
-            } else {
-                gpp_error!("return statement are only allowed inside functions or definitions.");
-            }
+            gpp_error!("return statement are only allowed inside functions or definitions.");
         }
     }
 
@@ -1282,9 +1280,9 @@ impl SemanticAnalyzer {
 
             if let Expression::Attribute(name, args, span) = attribute {
                 attribute_usages.push(BuiltinAttributeUsage {
-                    args: args.iter().map(|e| Rc::clone(e)).collect(),
+                    args: args.iter().map(Rc::clone).collect(),
                     name: name.lexeme.clone(),
-                    span: span.clone(),
+                    span: *span,
                 });
             } else {
                 unreachable!();
@@ -1294,39 +1292,39 @@ impl SemanticAnalyzer {
         match next {
             Statement::Function(_, _, _, _, span, line) => {
                 self.current_decorator = Decorator::new(attribute_usages);
-                return Ok(AnnotatedStatement::Decorator(
+                Ok(AnnotatedStatement::Decorator(
                     hash_token.clone(),
                     annotated_attributes,
                     span,
                     line,
-                ));
+                ))
             }
 
             Statement::NativeFunction(name, args, return_kind, span, line) => {
                 self.current_decorator = Decorator::new(attribute_usages);
-                return Ok(AnnotatedStatement::Decorator(
+                Ok(AnnotatedStatement::Decorator(
                     hash_token.clone(),
                     annotated_attributes,
                     span,
                     line,
-                ));
+                ))
             }
 
             Statement::InternalDefinition(_, _, _, _, span, line) => {
                 self.current_decorator = Decorator::new(attribute_usages);
-                return Ok(AnnotatedStatement::Decorator(
+                Ok(AnnotatedStatement::Decorator(
                     hash_token.clone(),
                     annotated_attributes,
                     span,
                     line,
-                ));
+                ))
             }
 
             Statement::EndCode => Ok(AnnotatedStatement::EndCode),
 
             _ => Err(CompilationError::with_span(
                 CompilationErrorKind::InvalidStatementUsage {
-                    error: format!("Decorators are only accepted in function signatures.",),
+                    error: "Decorators are only accepted in function signatures.".to_string(),
                 },
                 Some(hash_token.line),
                 hash_token.span,

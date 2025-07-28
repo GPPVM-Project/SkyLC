@@ -5,8 +5,8 @@ use crate::{SemanticAnalyzer, result::TyResult};
 
 impl SemanticAnalyzer {
     pub(crate) fn analyze_control_flow(&mut self, stmt: &AnnotatedStatement) {
-        if let AnnotatedStatement::Function(proto, body, _, _) = stmt {
-            if !proto.return_kind.borrow().is_void() {
+        if let AnnotatedStatement::Function(proto, body, _, _) = stmt
+            && !proto.return_kind.borrow().is_void() {
                 match self.returns_in_all_paths(body) {
                     Ok(false) => {
                         self.report_error(CompilationError::with_span(
@@ -22,7 +22,6 @@ impl SemanticAnalyzer {
                     Ok(true) => {}
                 }
             }
-        }
     }
 
     fn returns_in_all_paths(&self, stmt: &AnnotatedStatement) -> TyResult<bool> {

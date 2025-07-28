@@ -6,7 +6,7 @@ use std::{
 };
 
 use skyl_data::{
-    Ast, CompilerConfig, CompilerContext, ContextStack, Decorator, SemanticCode, SymbolKind,
+    Ast, CompilerConfig, CompilerContext, ContextStack, Decorator, SymbolKind,
     SymbolTable, TypeDescriptor,
 };
 use skyl_driver::{

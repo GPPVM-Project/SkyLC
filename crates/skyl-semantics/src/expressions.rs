@@ -137,13 +137,13 @@ impl SemanticAnalyzer {
                 Box::new(self.analyze_expr(variable)?),
             ))
         } else {
-            return Err(CompilationError::with_span(
+            Err(CompilationError::with_span(
                 CompilationErrorKind::InvalidPostfixOperatorUsage {
                     msg: "Only variables can use postfix operators.".into(),
                 },
                 Some(operator.line),
                 operator.span.merge(variable.span()),
-            ));
+            ))
         }
     }
 
@@ -167,10 +167,10 @@ impl SemanticAnalyzer {
         match token.kind {
             TokenKind::Operator(op) => match op {
                 OperatorKind::Minus => {
-                    let expr_type = self.resolve_expr_type(&expression)?;
+                    let expr_type = self.resolve_expr_type(expression)?;
 
                     self.assert_archetype_kind(
-                        &expression,
+                        expression,
                         self.get_static_kind_by_name("number", expression)?,
                         "'-' operator only be applyed in numbers.",
                     )?;
@@ -183,10 +183,10 @@ impl SemanticAnalyzer {
                 }
 
                 OperatorKind::Not => {
-                    let expr_type = self.resolve_expr_type(&expression)?;
+                    let expr_type = self.resolve_expr_type(expression)?;
 
                     self.assert_archetype_kind(
-                        &expression,
+                        expression,
                         self.get_static_kind_by_name("bool", expression)?,
                         "'not' operator only be applyed in booleans",
                     )?;
@@ -235,35 +235,31 @@ impl SemanticAnalyzer {
         let annotated_right;
 
         if !matches!(left, Expression::Literal(literal, span)) {
-            annotated_left = self.analyze_expr(&left)?;
+            annotated_left = self.analyze_expr(left)?;
+        } else if let Expression::Literal(l, span) = left {
+            annotated_left = self.analyze_literal(l.clone())?;
         } else {
-            if let Expression::Literal(l, span) = left {
-                annotated_left = self.analyze_literal(l.clone())?;
-            } else {
-                gpp_error!(
-                    "Invalid literal '{}' kind. At line {}.",
-                    token.lexeme,
-                    token.line
-                );
-            }
+            gpp_error!(
+                "Invalid literal '{}' kind. At line {}.",
+                token.lexeme,
+                token.line
+            );
         }
 
         if !matches!(right, Expression::Literal(literal, span)) {
-            annotated_right = self.analyze_expr(&right)?;
+            annotated_right = self.analyze_expr(right)?;
+        } else if let Expression::Literal(l, span) = right {
+            annotated_right = self.analyze_literal(l.clone())?;
         } else {
-            if let Expression::Literal(l, span) = right {
-                annotated_right = self.analyze_literal(l.clone())?;
-            } else {
-                gpp_error!(
-                    "Invalid literal '{}' kind. At line {}.",
-                    token.lexeme,
-                    token.line
-                );
-            }
+            gpp_error!(
+                "Invalid literal '{}' kind. At line {}.",
+                token.lexeme,
+                token.line
+            );
         }
 
-        let left_kind = self.resolve_expr_type(&left)?;
-        let right_kind = self.resolve_expr_type(&right)?;
+        let left_kind = self.resolve_expr_type(left)?;
+        let right_kind = self.resolve_expr_type(right)?;
 
         if let TokenKind::Operator(op) = token.kind {
             match op {
@@ -331,7 +327,7 @@ impl SemanticAnalyzer {
 
                 OperatorKind::EqualEqual | OperatorKind::NotEqual => {
                     let expected_kind = self.resolve_expr_type(left)?;
-                    self.assert_expression_kind(&right, expected_kind, left)?;
+                    self.assert_expression_kind(right, expected_kind, left)?;
 
                     Ok(AnnotatedExpression::Arithmetic(
                         Box::new(annotated_left),
@@ -342,23 +338,23 @@ impl SemanticAnalyzer {
                 }
 
                 _ => {
-                    return Err(CompilationError::with_span(
+                    Err(CompilationError::with_span(
                         CompilationErrorKind::InvalidExpression {
                             msg: format!("Invalid arithmetic operator '{}'", token.lexeme),
                         },
                         Some(token.line),
                         token.span,
-                    ));
+                    ))
                 }
             }
         } else {
-            return Err(CompilationError::with_span(
+            Err(CompilationError::with_span(
                 CompilationErrorKind::InvalidExpression {
                     msg: format!("Invalid arithmetic operator '{}'", token.lexeme),
                 },
                 Some(token.line),
                 token.span,
-            ));
+            ))
         }
     }
 
@@ -420,16 +416,15 @@ impl SemanticAnalyzer {
 
         match symbol {
             Some(sv) => {
-                let value = self.analyze_expr(&expression)?;
+                let value = self.analyze_expr(expression)?;
 
-                let value_type = self.resolve_expr_type(&expression)?;
+                let value_type = self.resolve_expr_type(expression)?;
                 let symbol_type = sv.kind;
 
-                if let Some(kind) = &symbol_type {
-                    if kind.borrow().name == "void" {
+                if let Some(kind) = &symbol_type
+                    && kind.borrow().name == "void" {
                         gpp_error!("Cannot assign 'void' to variables. At line {}.", token.line);
                     }
-                }
 
                 if value_type.borrow().name == "void" {
                     gpp_error!("Cannot assign 'void' to variables. At line {}.", token.line);
@@ -508,11 +503,11 @@ impl SemanticAnalyzer {
                 let kind = self.resolve_expr_type(callee)?;
 
                 if kind.borrow().fields.contains_key(&token.lexeme) {
-                    return Ok(AnnotatedExpression::Get(
+                    Ok(AnnotatedExpression::Get(
                         Box::new(self.analyze_expr(expression)?),
                         token.clone(),
                         self.resolve_expr_type(expression)?,
-                    ));
+                    ))
                 } else {
                     gpp_error!(
                         "Type '{}' has no property named '{}'.",
@@ -523,7 +518,7 @@ impl SemanticAnalyzer {
             }
 
             _ => {
-                panic!("Unsupported get expression: {:?}", expression);
+                panic!("Unsupported get expression: {expression:?}");
             }
         }
     }
@@ -677,21 +672,21 @@ impl SemanticAnalyzer {
                     }
 
                     None => {
-                        return Err(CompilationError::with_span(
+                        Err(CompilationError::with_span(
                             CompilationErrorKind::SymbolNotFound {
-                                symbol_kind: format!("function"),
+                                symbol_kind: "function".to_string(),
                                 symbol_name: name.lexeme.clone(),
                             },
                             Some(name.line),
                             name.span,
-                        ));
+                        ))
                     }
                 },
             }
         } else {
             match callee {
                 Expression::Get(callee, token, span) => {
-                    let method = self.analyze_method_get(&callee, token.clone())?;
+                    let method = self.analyze_method_get(callee, token.clone())?;
                     let mut annotated_args: Vec<Box<AnnotatedExpression>> = Vec::new();
 
                     if args.len() != method.params.len() - 1 {
@@ -703,7 +698,7 @@ impl SemanticAnalyzer {
                         );
                     }
 
-                    annotated_args.push(Box::new(self.analyze_expr(&callee)?));
+                    annotated_args.push(Box::new(self.analyze_expr(callee)?));
 
                     if method.arity > 1 {
                         for i in 0..(args.len()) {
@@ -729,7 +724,7 @@ impl SemanticAnalyzer {
                     }
 
                     return Ok(AnnotatedExpression::CallMethod(
-                        Box::new(self.analyze_expr(&callee)?),
+                        Box::new(self.analyze_expr(callee)?),
                         method,
                         annotated_args,
                     ));
@@ -737,7 +732,7 @@ impl SemanticAnalyzer {
 
                 Expression::Literal(token, span) => {
                     let literal_kind = self.resolve_literal_kind(token)?;
-                    println!("{:?}", literal_kind);
+                    println!("{literal_kind:?}");
                 }
 
                 _ => {
