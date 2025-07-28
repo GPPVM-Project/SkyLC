@@ -776,11 +776,10 @@ impl VirtualMachine {
         let byte3 = self.read_byte();
         let byte4 = self.read_byte();
 
-        let value = ((byte1 as u32) << 24)
+        return ((byte1 as u32) << 24)
             | ((byte2 as u32) << 16)
             | ((byte3 as u32) << 8)
             | (byte4 as u32);
-        value
     }
 
     fn read_byte(&mut self) -> u8 {
@@ -791,7 +790,7 @@ impl VirtualMachine {
     }
 
     fn push(&mut self, value: Value) {
-        self.stack[self.sp as usize] = value;
+        self.stack[self.sp] = value;
         self.sp += 1;
     }
 

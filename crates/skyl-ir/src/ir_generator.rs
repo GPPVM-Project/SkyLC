@@ -108,10 +108,7 @@ impl IRGenerator {
             AnnotatedStatement::EndCode => {
                 vec![]
             }
-            AnnotatedStatement::Expression(expression, _, _) => {
-                let code = self.generate_expr_ir(expression);
-                code
-            }
+            AnnotatedStatement::Expression(expression, _, _) => self.generate_expr_ir(expression),
             AnnotatedStatement::While(condition, body, _, _) => {
                 self.generate_while_ir(condition, body)
             }
@@ -172,7 +169,7 @@ impl IRGenerator {
 
         self.begin_scope();
 
-        for (_, param) in prototype.params.iter().enumerate() {
+        for param in prototype.params.iter() {
             self.declare_local(param.name.lexeme.clone(), true);
         }
 
@@ -246,7 +243,7 @@ impl IRGenerator {
             }
         }
 
-        return 0;
+        0
     }
 
     fn declare_local(&mut self, name: String, is_initialized: bool) {
@@ -732,8 +729,8 @@ impl IRGenerator {
         if let AnnotatedExpression::Variable(name, _) = variable {
             let index = self.get_in_depth(name.lexeme.clone());
 
-            match operator.kind {
-                TokenKind::Operator(op) => match op {
+            if let TokenKind::Operator(op) = operator.kind {
+                match op {
                     OperatorKind::PostFixIncrement => {
                         self.emit_instruction(&mut code, Instruction::IncrementLocal);
                         self.emit_byte(&mut code, index as u8);
@@ -744,8 +741,7 @@ impl IRGenerator {
                     }
 
                     _ => {}
-                },
-                _ => {}
+                }
             }
         }
 
@@ -806,7 +802,7 @@ impl IRGenerator {
         let mut code: Vec<u8> = Vec::new();
 
         for element in elements {
-            code.append(&mut self.generate_expr_ir(&element));
+            code.append(&mut self.generate_expr_ir(element));
         }
 
         self.emit_instruction(&mut code, Instruction::Array);
@@ -834,7 +830,7 @@ impl IRGenerator {
 
         self.native_functions.insert(
             prototype.name.clone(),
-            NativeFunctionInfo::new(prototype.arity as u8, id.clone()),
+            NativeFunctionInfo::new(prototype.arity as u8, id),
         );
 
         vec![]
@@ -878,8 +874,8 @@ impl IRGenerator {
 
         self.current_chunk.code = code.clone();
 
-        let id = match self.methods.contains_key(&target) {
-            true => self.methods[&target].len() as u32,
+        let id = match self.methods.contains_key(target) {
+            true => self.methods[target].len() as u32,
             false => 0,
         };
 
@@ -890,8 +886,8 @@ impl IRGenerator {
             definition.arity as u8,
         );
 
-        if self.methods.contains_key(&target) {
-            self.methods.get_mut(&target).unwrap().push(ir_function);
+        if self.methods.contains_key(target) {
+            self.methods.get_mut(target).unwrap().push(ir_function);
         } else {
             self.methods.insert(target.clone(), vec![ir_function]);
         }
@@ -903,7 +899,7 @@ impl IRGenerator {
         &mut self,
         _object: &AnnotatedExpression,
         method: &MethodDescriptor,
-        args: &Vec<Box<AnnotatedExpression>>,
+        args: &[Box<AnnotatedExpression>],
     ) -> Vec<u8> {
         let mut code = Vec::new();
 
