@@ -125,10 +125,7 @@ impl Lexer {
     fn scan_token(&mut self) {
         self.sync_cursors();
 
-        let c: char = match self.advance() {
-            None => '\0',
-            Some(character) => character,
-        };
+        let c: char = self.advance().unwrap_or('\0');
 
         match c {
             '\n' => {
@@ -293,11 +290,11 @@ impl Lexer {
     }
 
     fn is_digit(&self, c: char) -> bool {
-        c >= '0' && c <= '9'
+        ('0'..='9').contains(&c)
     }
 
     fn is_alpha(&self, c: char) -> bool {
-        (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+        ('a'..='z').contains(&c) || ('A'..='Z').contains(&c)
     }
 
     fn string(&mut self, end: char) -> Result<(), String> {
@@ -385,7 +382,7 @@ impl Lexer {
         }
 
         self.advance();
-        return true;
+        true
     }
 
     fn check(&self, c: char) -> bool {
@@ -411,7 +408,7 @@ impl Lexer {
     }
 
     fn is_at_end(&self) -> bool {
-        return self.start + self.length >= self.source.len();
+        self.start + self.length >= self.source.len()
     }
 
     fn comment(&mut self) {
