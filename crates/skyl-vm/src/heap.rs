@@ -60,48 +60,48 @@ impl Heap {
         gc_ref
     }
 
-    pub fn collect_garbage(&mut self, roots: &mut [Value]) {
+    pub fn collect_garbage(&mut self, _roots: &mut [Value]) {
         todo!();
-        for gc_ref in &self.objects {
-            gc_ref.color.set(RefColor::White);
-        }
+        // for gc_ref in &self.objects {
+        //     gc_ref.color.set(RefColor::White);
+        // }
 
-        let mut grey_stack: Vec<GcRef> = Vec::new();
+        // let mut grey_stack: Vec<GcRef> = Vec::new();
 
-        for value in roots.iter() {
-            // if let Value::Object(obj) = value {
-            //     if obj.color.get() == RefColor::White {
-            //         obj.color.set(RefColor::Grey);
-            //         obj.age.set(obj.age.get() + 1);
-            //         grey_stack.push(obj.clone());
-            //     }
-            // }
-        }
+        // for value in roots.iter() {
+        // if let Value::Object(obj) = value {
+        //     if obj.color.get() == RefColor::White {
+        //         obj.color.set(RefColor::Grey);
+        //         obj.age.set(obj.age.get() + 1);
+        //         grey_stack.push(obj.clone());
+        //     }
+        // }
+        // }
 
-        while let Some(gc_ref) = grey_stack.pop() {
-            gc_ref.color.set(RefColor::Black);
+        // while let Some(gc_ref) = grey_stack.pop() {
+        //     gc_ref.color.set(RefColor::Black);
 
-            unsafe {
-                gc_ref.borrow().trace_references(&mut |child: &GcRef| {
-                    if child.color.get() == RefColor::White {
-                        child.color.set(RefColor::Grey);
-                        grey_stack.push(child.clone());
-                    }
-                });
-            }
-        }
+        //     unsafe {
+        //         gc_ref.borrow().trace_references(&mut |child: &GcRef| {
+        //             if child.color.get() == RefColor::White {
+        //                 child.color.set(RefColor::Grey);
+        //                 grey_stack.push(child.clone());
+        //             }
+        //         });
+        //     }
+        // }
 
-        self.objects.retain(|gc_ref| {
-            if gc_ref.color.get() == RefColor::White {
-                let size = unsafe { gc_ref.borrow() }.get_size();
+        // self.objects.retain(|gc_ref| {
+        //     if gc_ref.color.get() == RefColor::White {
+        //         let size = unsafe { gc_ref.borrow() }.get_size();
 
-                unsafe { drop(Box::from_raw(gc_ref.obj)) };
-                self.allocated_bytes -= size;
-                false
-            } else {
-                true
-            }
-        });
+        //         unsafe { drop(Box::from_raw(gc_ref.obj)) };
+        //         self.allocated_bytes -= size;
+        //         false
+        //     } else {
+        //         true
+        //     }
+        // });
     }
 
     pub fn clear(&mut self) {

@@ -2,7 +2,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use skyl_data::{
     Ast, CollectionKind, Expression, FieldDeclaration, KeywordKind, Literal, OperatorKind,
-    PunctuationKind, Span, Statement, Token, TokenKind, TokenStream,
+    PunctuationKind, Statement, Token, TokenKind, TokenStream,
 };
 use skyl_driver::errors::{
     CompilationError, CompilationErrorKind, CompilerErrorReporter, ParseError,

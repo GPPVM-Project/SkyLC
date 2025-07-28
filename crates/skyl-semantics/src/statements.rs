@@ -833,7 +833,7 @@ impl SemanticAnalyzer {
             ),
         )?;
 
-        if let Some(_) = self.get_native_function(&name.lexeme) {
+        if self.get_native_function(&name.lexeme).is_some() {
             return Err(CompilationError::with_span(
                 CompilationErrorKind::DuplicatedNativeFunction {
                     name: name.lexeme.clone(),
@@ -1159,7 +1159,7 @@ impl SemanticAnalyzer {
             ),
         )?;
 
-        if let Some(_) = self.symbol_table.names.get(&name.lexeme) {
+        if self.symbol_table.names.contains_key(&name.lexeme) {
             return Err(CompilationError::with_span(
                 CompilationErrorKind::DuplicatedTypeDefinition {
                     r#type: name.lexeme.clone(),

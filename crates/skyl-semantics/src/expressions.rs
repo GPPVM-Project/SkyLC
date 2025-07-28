@@ -54,43 +54,39 @@ impl SemanticAnalyzer {
     pub(crate) fn analyze_expr(&mut self, expr: &Expression) -> TyResult<AnnotatedExpression> {
         match expr.clone() {
             Expression::Void => Ok(AnnotatedExpression::Void),
-            Expression::Literal(token, span) => self.analyze_literal(token),
-            Expression::PostFix(operator, variable, span) => {
+            Expression::Literal(token, _) => self.analyze_literal(token),
+            Expression::PostFix(operator, variable, _) => {
                 self.analyze_postfix_expr(&operator, &variable)
             }
-            Expression::Unary(token, expression, span) => {
-                self.analyze_unary_expr(token, &expression)
-            }
-            Expression::Arithmetic(left, op, right, span) => {
+            Expression::Unary(token, expression, _) => self.analyze_unary_expr(token, &expression),
+            Expression::Arithmetic(left, op, right, _) => {
                 self.analyze_arithmetic_expr(&left, &op, &right)
             }
-            Expression::Logical(left, op, right, span) => {
+            Expression::Logical(left, op, right, _) => {
                 self.analyze_logical_expr(&left, &op, &right)
             }
-            Expression::Ternary(expression, expression1, expression2, span) => todo!(),
-            Expression::Assign(token, expression, span) => {
+            Expression::Ternary(_, _, _, _) => todo!(),
+            Expression::Assign(token, expression, _) => {
                 self.analyze_assignment_expr(token, &expression)
             }
             Expression::Lambda => todo!(),
-            Expression::Get(expression, token, span) => self.analyze_get_expr(&expression, token),
-            Expression::Variable(token, span) => self.analyze_variable_get_expr(token),
-            Expression::Set(target, name, value, span) => {
-                self.analyze_set_expr(target, name, value)
-            }
-            Expression::Call(callee, paren, args, span) => {
+            Expression::Get(expression, token, _) => self.analyze_get_expr(&expression, token),
+            Expression::Variable(token, _) => self.analyze_variable_get_expr(token),
+            Expression::Set(target, name, value, _) => self.analyze_set_expr(target, name, value),
+            Expression::Call(callee, paren, args, _) => {
                 self.analyze_call_expression(&callee, &paren, &args)
             }
-            Expression::Tuple(expressions, span) => todo!(),
-            Expression::List(expressions, span) => self.analyze_collection(expr),
-            Expression::TypeComposition(names, span) => todo!(),
-            Expression::Attribute(token, expressions, span) => {
+            Expression::Tuple(_, _) => todo!(),
+            Expression::List(_, _) => self.analyze_collection(expr),
+            Expression::TypeComposition(_, _) => todo!(),
+            Expression::Attribute(token, expressions, _) => {
                 self.analyze_attribute(token, expressions)
             }
-            Expression::Group(expression, span) => self.analyze_expr(&expression),
-            Expression::ListGet(expression, index, span) => {
+            Expression::Group(expression, _) => self.analyze_expr(&expression),
+            Expression::ListGet(expression, index, _) => {
                 self.analyze_list_get_expr(expression, index)
             }
-            Expression::ListSet(list, index, value, span) => {
+            Expression::ListSet(list, index, value, _) => {
                 self.analyze_list_set_expr(list, index, value)
             }
         }
@@ -118,7 +114,7 @@ impl SemanticAnalyzer {
         operator: &Token,
         variable: &Expression,
     ) -> TyResult<AnnotatedExpression> {
-        if let Expression::Variable(name, span) = variable {
+        if let Expression::Variable(name, _) = variable {
             let kind = self.resolve_identifier_type(name)?;
 
             if !kind
@@ -236,9 +232,9 @@ impl SemanticAnalyzer {
         let annotated_left;
         let annotated_right;
 
-        if !matches!(left, Expression::Literal(literal, span)) {
+        if !matches!(left, Expression::Literal(_, _)) {
             annotated_left = self.analyze_expr(left)?;
-        } else if let Expression::Literal(l, span) = left {
+        } else if let Expression::Literal(l, _) = left {
             annotated_left = self.analyze_literal(l.clone())?;
         } else {
             gpp_error!(
@@ -248,9 +244,9 @@ impl SemanticAnalyzer {
             );
         }
 
-        if !matches!(right, Expression::Literal(literal, span)) {
+        if !matches!(right, Expression::Literal(_, _)) {
             annotated_right = self.analyze_expr(right)?;
-        } else if let Expression::Literal(l, span) = right {
+        } else if let Expression::Literal(l, _) = right {
             annotated_right = self.analyze_literal(l.clone())?;
         } else {
             gpp_error!(
@@ -273,7 +269,7 @@ impl SemanticAnalyzer {
                 | OperatorKind::GreaterEqual
                 | OperatorKind::Less
                 | OperatorKind::LessEqual => {
-                    let msg = format!(
+                    let _msg = format!(
                         "Cannot apply arithmetic operation '{}' to '{}' and '{}'. At line {}.",
                         token.lexeme,
                         left_kind.borrow().name,
@@ -488,19 +484,19 @@ impl SemanticAnalyzer {
         token: Token,
     ) -> TyResult<AnnotatedExpression> {
         match expression {
-            Expression::Get(_, _, span) => Ok(AnnotatedExpression::Get(
+            Expression::Get(_, _, _) => Ok(AnnotatedExpression::Get(
                 Box::new(self.analyze_expr(expression)?),
                 token.clone(),
                 self.resolve_expr_type(expression)?,
             )),
 
-            Expression::Variable(name, span) => Ok(AnnotatedExpression::Get(
+            Expression::Variable(_, _) => Ok(AnnotatedExpression::Get(
                 Box::new(self.analyze_expr(expression)?),
                 token.clone(),
                 self.resolve_expr_type(expression)?,
             )),
 
-            Expression::Call(callee, paren, args, span) => {
+            Expression::Call(callee, _, _, _) => {
                 let kind = self.resolve_expr_type(callee)?;
 
                 if kind.borrow().fields.contains_key(&token.lexeme) {
@@ -573,7 +569,7 @@ impl SemanticAnalyzer {
         let annotated_target = self.analyze_expr(&target)?;
         let annotated_value = self.analyze_expr(&value)?;
         let target_kind = self.resolve_expr_type(&target)?;
-        let value_kind = self.resolve_expr_type(&value)?;
+        let _value_kind = self.resolve_expr_type(&value)?;
 
         // self.assert_kind_equals(
         //     value_kind,
@@ -619,7 +615,7 @@ impl SemanticAnalyzer {
             annotated_args.push(Box::new(self.analyze_expr(arg)?));
         }
 
-        if let Expression::Variable(name, span) = callee {
+        if let Expression::Variable(name, _) = callee {
             if self.current_symbol.clone() == name.lexeme.clone() {
                 gpp_error!(
                     "Recursive calls are not allowed in current version. At line {}.",
@@ -684,7 +680,7 @@ impl SemanticAnalyzer {
             }
         } else {
             match callee {
-                Expression::Get(callee, token, span) => {
+                Expression::Get(callee, token, _) => {
                     let method = self.analyze_method_get(callee, token.clone())?;
                     let mut annotated_args: Vec<Box<AnnotatedExpression>> = Vec::new();
 
@@ -729,7 +725,7 @@ impl SemanticAnalyzer {
                     ));
                 }
 
-                Expression::Literal(token, span) => {
+                Expression::Literal(token, _) => {
                     let literal_kind = self.resolve_literal_kind(token)?;
                     println!("{literal_kind:?}");
                 }
@@ -763,7 +759,7 @@ impl SemanticAnalyzer {
     fn analyze_collection(&mut self, collection: &Expression) -> TyResult<AnnotatedExpression> {
         let kind = self.resolve_iterator_kind(collection)?;
 
-        if let Expression::List(elements, span) = collection {
+        if let Expression::List(elements, _) = collection {
             let mut annotated_elements = Vec::new();
 
             for element in elements {

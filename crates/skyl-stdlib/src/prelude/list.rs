@@ -6,7 +6,8 @@ pub struct GPPListLibrary;
 impl GPPListLibrary {
     fn list_len(args: Vec<Value>) -> Value {
         if let Value::Object(obj_ptr) = &args[0] {
-            let len = unsafe { obj_ptr.borrow() }
+            let len = obj_ptr
+                .borrow()
                 .as_any()
                 .downcast_ref::<List>()
                 .unwrap()
