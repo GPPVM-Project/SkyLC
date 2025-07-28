@@ -81,6 +81,7 @@ pub struct IntermediateCode {
 }
 
 impl IntermediateCode {
+    #[allow(clippy::mutable_key_type)]
     pub fn new(
         functions: HashMap<String, IRFunction>,
         native_functions: HashMap<String, NativeFunctionInfo>,

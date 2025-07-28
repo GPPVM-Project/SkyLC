@@ -171,6 +171,10 @@ impl ContextStack {
         self.scopes.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.scopes.is_empty()
+    }
+
     pub fn peek(&mut self) -> &mut ContextScope {
         self.scopes.last_mut().unwrap()
     }

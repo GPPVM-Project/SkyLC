@@ -44,10 +44,12 @@ impl GcRef {
         }
     }
 
+    #[allow(clippy::missing_safety_doc)]
     pub unsafe fn borrow(&self) -> &dyn Object {
         unsafe { &*self.obj }
     }
 
+    #[allow(clippy::missing_safety_doc)]
     pub unsafe fn borrow_mut(&mut self) -> &mut dyn Object {
         unsafe { &mut *self.obj }
     }

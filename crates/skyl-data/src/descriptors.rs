@@ -25,7 +25,6 @@ impl Eq for TypeDescriptor {}
 
 impl Hash for TypeDescriptor {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.name.hash(state);
         self.id.hash(state);
     }
 }

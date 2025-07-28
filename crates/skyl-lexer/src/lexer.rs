@@ -290,11 +290,11 @@ impl Lexer {
     }
 
     fn is_digit(&self, c: char) -> bool {
-        ('0'..='9').contains(&c)
+        c.is_ascii_digit()
     }
 
     fn is_alpha(&self, c: char) -> bool {
-        ('a'..='z').contains(&c) || ('A'..='Z').contains(&c)
+        c.is_ascii_lowercase() || c.is_ascii_uppercase()
     }
 
     fn string(&mut self, end: char) -> Result<(), String> {
