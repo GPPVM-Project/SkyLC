@@ -33,64 +33,54 @@ impl From<&CompilationError> for Option<MietteCompilationError> {
             CompilationErrorKind::InvalidNativeDeclaration => "Invalid native declaration",
             CompilationErrorKind::InvalidBuiltinDeclaration => "Invalid builtin declaration",
             CompilationErrorKind::InvalidKeyword { keyword } => {
-                &format!("Invalid keyword '{}'", keyword)
+                &format!("Invalid keyword '{keyword}'")
             }
             CompilationErrorKind::InvalidAssignmentTarget => "Invalid assignment target",
             CompilationErrorKind::ArgumentLimitOverflow => "Argument limit overflow",
-            CompilationErrorKind::UnexpectedToken { token } => "Unexpected token",
-            CompilationErrorKind::ExpectedToken { expect, found, .. } => "Expected token",
-            CompilationErrorKind::ExpectedConstruction { expect, found } => "Expected construction",
+            CompilationErrorKind::UnexpectedToken { .. } => "Unexpected token",
+            CompilationErrorKind::ExpectedToken { .. } => "Expected token",
+            CompilationErrorKind::ExpectedConstruction { .. } => "Expected construction",
             CompilationErrorKind::MissingMainFunction => "Missing main function",
-            CompilationErrorKind::DuplicatedVariable { name, previous } => "Duplicated variable",
+            CompilationErrorKind::DuplicatedVariable { .. } => "Duplicated variable",
             CompilationErrorKind::UsingVoidToAssignVariableOrParam => "Void used in assignment",
-            CompilationErrorKind::DuplicatedTypeDefinition { r#type } => {
-                "Duplicated type definition"
-            }
-            CompilationErrorKind::DuplicatedField { field } => "Duplicated field",
-            CompilationErrorKind::DuplicatedDefinition { kind, .. } => "Duplicated definition",
-            CompilationErrorKind::MissingConstruction { construction } => "Missing construction",
-            CompilationErrorKind::InvalidStatementScope { statement } => "Invalid statement scope",
-            CompilationErrorKind::DepthError { msg } => "Depth error",
-            CompilationErrorKind::InvalidStatementUsage { error } => "Invalid statement usage",
-            CompilationErrorKind::ExpectType { expect, found, .. } => "Type mismatch",
-            CompilationErrorKind::ExpectReturnType { expect, found } => "Return type mismatch",
-            CompilationErrorKind::UnexpectedReturnValue { found } => "Unexpected return value",
-            CompilationErrorKind::TypeAssertion { msg } => "Type assertion error",
-            CompilationErrorKind::UsageOfNotRequiredStatement { statement, place } => {
-                "Unused statement"
-            }
-            CompilationErrorKind::DuplicatedNativeFunction { name } => "Duplicated native function",
-            CompilationErrorKind::NotFoundType { name } => "Type not found",
-            CompilationErrorKind::NotFoundField { r#type, field } => "Field not found",
-            CompilationErrorKind::SymbolNotFound { symbol_kind, .. } => "Symbol not found",
-            CompilationErrorKind::ModuleNotFound { path } => "Module not found",
-            CompilationErrorKind::ModuleAccessDenied { path, .. } => "Module access denied",
-            CompilationErrorKind::ModuleReadError { path, error, .. } => "Module read error",
-            CompilationErrorKind::UnsupportedFeature { feature } => "Unsupported feature",
-            CompilationErrorKind::InvalidLiteral { line } => "Invalid literal",
-            CompilationErrorKind::InvalidPostfixOperatorUsage { msg } => {
+            CompilationErrorKind::DuplicatedTypeDefinition { .. } => "Duplicated type definition",
+            CompilationErrorKind::DuplicatedField { .. } => "Duplicated field",
+            CompilationErrorKind::DuplicatedDefinition { .. } => "Duplicated definition",
+            CompilationErrorKind::MissingConstruction { .. } => "Missing construction",
+            CompilationErrorKind::InvalidStatementScope { .. } => "Invalid statement scope",
+            CompilationErrorKind::DepthError { .. } => "Depth error",
+            CompilationErrorKind::InvalidStatementUsage { .. } => "Invalid statement usage",
+            CompilationErrorKind::ExpectType { .. } => "Type mismatch",
+            CompilationErrorKind::ExpectReturnType { .. } => "Return type mismatch",
+            CompilationErrorKind::UnexpectedReturnValue { .. } => "Unexpected return value",
+            CompilationErrorKind::TypeAssertion { .. } => "Type assertion error",
+            CompilationErrorKind::UsageOfNotRequiredStatement { .. } => "Unused statement",
+            CompilationErrorKind::DuplicatedNativeFunction { .. } => "Duplicated native function",
+            CompilationErrorKind::NotFoundType { .. } => "Type not found",
+            CompilationErrorKind::NotFoundField { .. } => "Field not found",
+            CompilationErrorKind::SymbolNotFound { .. } => "Symbol not found",
+            CompilationErrorKind::ModuleNotFound { .. } => "Module not found",
+            CompilationErrorKind::ModuleAccessDenied { .. } => "Module access denied",
+            CompilationErrorKind::ModuleReadError { .. } => "Module read error",
+            CompilationErrorKind::UnsupportedFeature { .. } => "Unsupported feature",
+            CompilationErrorKind::InvalidLiteral { .. } => "Invalid literal",
+            CompilationErrorKind::InvalidPostfixOperatorUsage { .. } => {
                 "Invalid postfix operator usage"
             }
-            CompilationErrorKind::InvalidExpression { msg } => "Invalid expression",
-            CompilationErrorKind::InvalidAttributeExpression { msg } => {
+            CompilationErrorKind::InvalidExpression { .. } => "Invalid expression",
+            CompilationErrorKind::InvalidAttributeExpression { .. } => {
                 "Invalid attribute expression"
             }
-            CompilationErrorKind::InexistentType { r#type } => "Inexistent type",
+            CompilationErrorKind::InexistentType { .. } => "Inexistent type",
             CompilationErrorKind::NotFoundArchetypeMask(_) => "Archetype mask not found",
-            CompilationErrorKind::UsageOfNotInferredVariable { name } => "Variable not inferred",
-            CompilationErrorKind::UsageOfUndeclaredVariable { name } => "Undeclared variable",
+            CompilationErrorKind::UsageOfNotInferredVariable { .. } => "Variable not inferred",
+            CompilationErrorKind::UsageOfUndeclaredVariable { .. } => "Undeclared variable",
             CompilationErrorKind::InvalidOperatorOverload(_) => "Invalid operator overload",
-            CompilationErrorKind::MismatchAttrbuteArgument { arg, .. } => {
-                "Attribute argument mismatch"
-            }
+            CompilationErrorKind::MismatchAttrbuteArgument { .. } => "Attribute argument mismatch",
             CompilationErrorKind::InvalidConstantEvaluation(_) => "Invalid constant evaluation",
-            CompilationErrorKind::OperatorOverloadNotFound { operator, .. } => {
-                "Operator overload not found"
-            }
-            CompilationErrorKind::MismatchArgumentCount {
-                expected, found, ..
-            } => "Argument count mismatch",
-            CompilationErrorKind::AssignTypeError { kind, .. } => "Assign type error",
+            CompilationErrorKind::OperatorOverloadNotFound { .. } => "Operator overload not found",
+            CompilationErrorKind::MismatchArgumentCount { .. } => "Argument count mismatch",
+            CompilationErrorKind::AssignTypeError { .. } => "Assign type error",
             CompilationErrorKind::MainFunctionReturnKind => "Invalid main function return kind",
         };
 

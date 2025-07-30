@@ -241,16 +241,14 @@ impl CompilerErrorStack {
 #[derive(Debug)]
 pub struct CompilerErrorReporter {
     stack: CompilerErrorStack,
-    file: Option<Rc<SourceFile>>,
     ctx: Option<Rc<RefCell<CompilerContext>>>,
     error_files: HashMap<String, SourceFile>,
 }
 
 impl CompilerErrorReporter {
-    pub fn new(file: Rc<SourceFile>, ctx: Option<Rc<RefCell<CompilerContext>>>) -> Self {
+    pub fn new(ctx: Option<Rc<RefCell<CompilerContext>>>) -> Self {
         Self {
             stack: CompilerErrorStack::new(),
-            file: Some(file),
             ctx,
             error_files: HashMap::new(),
         }
@@ -259,7 +257,6 @@ impl CompilerErrorReporter {
     pub fn empty() -> Self {
         Self {
             stack: CompilerErrorStack::new(),
-            file: None,
             ctx: None,
             error_files: HashMap::new(),
         }

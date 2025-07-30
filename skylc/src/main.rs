@@ -24,10 +24,8 @@ use skyl_lexer::Lexer;
 
 #[cfg(debug_assertions)]
 fn load_dotenv() {
-    match dotenvy::dotenv() {
-        Err(_) => {}
-        Ok(_) => {}
-    }
+    #[allow(unused_must_use)]
+    dotenvy::dotenv();
 }
 
 #[cfg(not(debug_assertions))]
@@ -65,10 +63,7 @@ fn compile(args: &CompileArgs) -> Result<()> {
     ctx.borrow_mut()
         .push_module(args.input_file.to_str().unwrap().to_string());
 
-    let reporter = Rc::new(RefCell::new(CompilerErrorReporter::new(
-        Rc::clone(&source_code),
-        Some(ctx.clone()),
-    )));
+    let reporter = Rc::new(RefCell::new(CompilerErrorReporter::new(Some(ctx.clone()))));
 
     let stdlib_path = find_stdlib_path();
 
