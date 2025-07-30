@@ -7,3 +7,10 @@ license.workspace = true
 
 [dependencies]
 skyl-data = { path = "../skyl-data" }
+miette = { version = "7.2.0", features = [
+    "fancy",
+    "derive",
+    "syntect-highlighter",
+] }
+thiserror = "2.0.12"
+owo-colors = "4.0"

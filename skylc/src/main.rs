@@ -24,7 +24,10 @@ use skyl_lexer::Lexer;
 
 #[cfg(debug_assertions)]
 fn load_dotenv() {
-    dotenvy::dotenv().unwrap();
+    match dotenvy::dotenv() {
+        Err(_) => {}
+        Ok(_) => {}
+    }
 }
 
 #[cfg(not(debug_assertions))]

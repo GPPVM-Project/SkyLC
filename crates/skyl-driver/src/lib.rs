@@ -1,5 +1,6 @@
 use std::cell::RefCell;
 use std::rc::Rc;
+pub mod diagnostic;
 
 use skyl_data::{CompilerConfig, CompilerContext};
 

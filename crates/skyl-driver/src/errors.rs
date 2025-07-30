@@ -1,4 +1,5 @@
-use crate::format_err::*;
+use crate::{diagnostic::MietteCompilationError, format_err::*};
+use miette::GraphicalReportHandler;
 use skyl_data::{read_file_without_bom, Archetype, CompilerContext, SourceFile, Span};
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
@@ -307,12 +308,22 @@ impl PipelineError {
 
 pub fn handle_errors(reporter: &CompilerErrorReporter) {
     if reporter.has_errors() {
-        let _file = reporter.file.as_ref().map(Rc::clone).unwrap().clone();
+        let errors = reporter.get_errors();
 
-        for error in reporter.get_errors() {
-            let formated_error =
-                format_err(error, &reporter.error_files[&error.file.clone().unwrap()]);
-            println!("{formated_error}");
+        for error in errors {
+            if let Some(miette_error) = Option::<MietteCompilationError>::from(error) {
+                let handler = GraphicalReportHandler::new()
+                    .with_primary_span_start()
+                    .with_show_related_as_nested(true)
+                    .with_context_lines(0);
+                let mut error = String::new();
+                handler.render_report(&mut error, &miette_error).unwrap();
+                eprintln!("{:?}", miette::Report::new(miette_error));
+            } else {
+                let file = &reporter.error_files[&error.file.clone().unwrap()];
+                let formatted = format_err(error, file);
+                println!("{formatted}");
+            }
         }
 
         gpp_error!(

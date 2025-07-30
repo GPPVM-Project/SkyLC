@@ -273,7 +273,7 @@ CompilationErrorKind::MainFunctionReturnKind => vec![],
     }
 }
 
-fn hintify_error(err: &CompilationError) -> String {
+pub fn hintify_error(err: &CompilationError) -> String {
     match &err.kind {
         CompilationErrorKind::SymbolNotFound {
                                 symbol_kind,
@@ -392,7 +392,7 @@ CompilationErrorKind::MainFunctionReturnKind => "Consider changing the return ty
     }
 }
 
-fn stringify_error(err: &CompilationError) -> String {
+pub fn stringify_error(err: &CompilationError) -> String {
     match &err.kind {
         CompilationErrorKind::IllegalCharacter(c) => format_illegal_character_err(c),
         CompilationErrorKind::InvalidNativeDeclaration => format_invalid_native_declaration(),
