@@ -189,8 +189,16 @@ impl SemanticAnalyzer {
         self.begin_scope();
 
         for stmt in stmts {
-            let mut annotated_stmt = self.analyze_stmt(stmt, &stmt.span(), &stmt.line())?;
-            annotated_stmts.append(&mut annotated_stmt);
+            let annotated_stmt = self.analyze_stmt(stmt, &stmt.span(), &stmt.line());
+            match annotated_stmt {
+                Err(e) => {
+                    self.end_scope();
+                    return Err(e);
+                }
+                Ok(mut s) => {
+                    annotated_stmts.append(&mut s);
+                }
+            }
         }
 
         self.end_scope();
@@ -376,7 +384,13 @@ impl SemanticAnalyzer {
 
         self.begin_scope();
         for arg in params {
-            let kind = self.resolve_expr_type(&arg.kind)?;
+            let kind = match self.resolve_expr_type(&arg.kind) {
+                Err(e) => {
+                    self.end_scope();
+                    return Err(e);
+                }
+                Ok(k) => k,
+            };
             self.define_local(
                 &arg.name.lexeme,
                 SemanticValue::new(Some(kind), ValueWrapper::Internal, arg.name.line),
@@ -515,17 +529,15 @@ impl SemanticAnalyzer {
             condition,
         )?;
 
-        self.begin_scope();
-
-        let mut annotated_body = Vec::new();
+        let annotated_body;
 
         match body {
-            Statement::Scope(stmts, span, line) => {
-                for stmt in stmts {
-                    for s in self.analyze_stmt(stmt, span, line)? {
-                        annotated_body.push(Box::new(s));
-                    }
-                }
+            Statement::Scope(stmts, _, _) => {
+                annotated_body = self
+                    .analyze_scope(stmts)?
+                    .into_iter()
+                    .map(|s| Box::new(s))
+                    .collect()
             }
             _ => {
                 return Err(CompilationError::new(
@@ -537,22 +549,16 @@ impl SemanticAnalyzer {
             }
         }
 
-        self.end_scope();
-
-        let mut annotated_else = Vec::new();
+        let annotated_else;
 
         match else_branch {
             Some(stmt) => match stmt.as_ref() {
                 Statement::Scope(stmts, span, line) => {
-                    self.begin_scope();
-
-                    for stmt in stmts {
-                        for s in self.analyze_stmt(stmt, span, line)? {
-                            annotated_else.push(Box::new(s));
-                        }
-                    }
-
-                    self.end_scope();
+                    annotated_else = self
+                        .analyze_scope(stmts)?
+                        .into_iter()
+                        .map(|s| Box::new(s))
+                        .collect();
 
                     Ok(AnnotatedStatement::If(
                         keyword.clone(),
@@ -982,6 +988,8 @@ impl SemanticAnalyzer {
         }
 
         self.end_scope();
+
+        self.process_function(name, &function_definition)?;
 
         Ok(AnnotatedStatement::Function(
             function_definition,

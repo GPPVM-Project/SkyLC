@@ -1,11 +1,3 @@
-def test() -> int {   
-   if 2 > 1 {
-      return 1 + true;
-   }
-
-   // Missing return
-}
-
 def main() -> void {
-
+   println("Hello " + "World");
 }
