@@ -1,5 +1,4 @@
 #![allow(clippy::result_large_err)]
-use std::rc::Rc;
 
 use skyl_data::{
     BuiltinAttributeUsage, Decorator, Expression, FunctionPrototype, Literal, Token, TokenKind,
@@ -61,9 +60,10 @@ impl SemanticAnalyzer {
     ) -> TyResult<()> {
         match attribute.name.as_str() {
             "operator" => {
-                match self.process_one_attribute::<OperatorAttribute>(name, attribute, definition) {
-                    Err(e) => self.report_error(e),
-                    Ok(_) => {}
+                if let Err(e) =
+                    self.process_one_attribute::<OperatorAttribute>(name, attribute, definition)
+                {
+                    self.report_error(e);
                 }
             }
 
@@ -80,8 +80,8 @@ impl SemanticAnalyzer {
         Ok(())
     }
 
-    pub(crate) fn evaluate(&mut self, constant: &Rc<Expression>) -> TyResult<ValueWrapper> {
-        if let Expression::Literal(lt, _) = constant.as_ref() {
+    pub(crate) fn evaluate(&mut self, constant: &Expression) -> TyResult<ValueWrapper> {
+        if let Expression::Literal(lt, _) = constant {
             if let TokenKind::Literal(l) = lt.kind {
                 match l {
                     Literal::String => return Ok(ValueWrapper::String(lt.lexeme.clone())),

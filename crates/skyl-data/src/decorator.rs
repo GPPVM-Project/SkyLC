@@ -1,10 +1,8 @@
-use std::rc::Rc;
-
 use crate::{Expression, Span};
 
 #[derive(Debug, Clone)]
 pub struct BuiltinAttributeUsage {
-    pub args: Vec<Rc<Expression>>,
+    pub args: Vec<Expression>,
     pub name: String,
     pub span: Span,
 }

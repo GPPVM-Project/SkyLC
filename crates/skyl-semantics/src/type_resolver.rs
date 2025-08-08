@@ -310,7 +310,7 @@ impl SemanticAnalyzer {
     /// The inferred type is printed for debugging purposes before being returned.
     pub(super) fn resolve_list_type(
         &mut self,
-        elements: &[Rc<Expression>],
+        elements: &[Expression],
     ) -> TyResult<Rc<RefCell<TypeDescriptor>>> {
         if elements.is_empty() {
             gpp_error!("Cannot infer type of empty list. At least one element is required.");

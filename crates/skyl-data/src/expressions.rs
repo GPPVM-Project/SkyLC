@@ -1,32 +1,29 @@
-use std::{
-    fmt::{self, Display},
-    rc::Rc,
-};
+use std::fmt::{self, Display};
 
 use crate::{Span, token::Token};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expression {
     Literal(Token, Span),
-    Unary(Token, Rc<Expression>, Span),
-    PostFix(Token, Rc<Expression>, Span),
-    Arithmetic(Rc<Expression>, Token, Rc<Expression>, Span),
-    Logical(Rc<Expression>, Token, Rc<Expression>, Span),
-    Ternary(Rc<Expression>, Rc<Expression>, Rc<Expression>, Span),
-    Assign(Token, Rc<Expression>, Span),
+    Unary(Token, Box<Expression>, Span),
+    PostFix(Token, Box<Expression>, Span),
+    Arithmetic(Box<Expression>, Token, Box<Expression>, Span),
+    Logical(Box<Expression>, Token, Box<Expression>, Span),
+    Ternary(Box<Expression>, Box<Expression>, Box<Expression>, Span),
+    Assign(Token, Box<Expression>, Span),
     Lambda,
-    Get(Rc<Expression>, Token, Span),
+    Get(Box<Expression>, Token, Span),
     Variable(Token, Span),
-    Set(Rc<Expression>, Token, Rc<Expression>, Span),
-    Call(Rc<Expression>, Token, Vec<Expression>, Span),
-    Tuple(Vec<Rc<Expression>>, Span),
-    List(Vec<Rc<Expression>>, Span),
+    Set(Box<Expression>, Token, Box<Expression>, Span),
+    Call(Box<Expression>, Token, Vec<Expression>, Span),
+    Tuple(Vec<Expression>, Span),
+    List(Vec<Expression>, Span),
     TypeComposition(Vec<Token>, Span),
-    Attribute(Token, Vec<Rc<Expression>>, Span),
-    Group(Rc<Expression>, Span),
+    Attribute(Token, Vec<Expression>, Span),
+    Group(Box<Expression>, Span),
     Void,
     ListGet(Box<Expression>, Box<Expression>, Span),
-    ListSet(Box<Expression>, Box<Expression>, Rc<Expression>, Span),
+    ListSet(Box<Expression>, Box<Expression>, Box<Expression>, Span),
 }
 
 impl Expression {

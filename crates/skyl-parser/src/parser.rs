@@ -185,7 +185,7 @@ impl Parser {
         Ok(Statement::InternalDefinition(
             function_name,
             params,
-            Rc::new(body),
+            Box::new(body),
             return_kind,
             start_token.span.merge(end_span),
             start_token.line,
@@ -502,17 +502,17 @@ impl Parser {
 
         let start_span = decorator_name.span;
 
-        let mut args: Vec<Rc<Expression>> = Vec::new();
+        let mut args: Vec<Expression> = Vec::new();
         let mut end_span = start_span;
 
         if self.try_eat(&[TokenKind::Punctuation(PunctuationKind::LeftParen)]) {
             let mut arg = self.expression()?;
-            args.push(Rc::new(arg));
+            args.push(arg);
 
             if !self.check(&[TokenKind::Punctuation(PunctuationKind::RightParen)]) {
                 while self.try_eat(&[TokenKind::Punctuation(PunctuationKind::Comma)]) {
                     arg = self.expression()?;
-                    args.push(Rc::new(arg));
+                    args.push(arg);
                 }
             }
 
@@ -612,7 +612,7 @@ impl Parser {
         Ok(Statement::Function(
             function_name,
             params,
-            Rc::new(body),
+            Box::new(body),
             return_kind,
             end_span.merge(start_token.span),
             start_token.line,
@@ -832,14 +832,14 @@ impl Parser {
         let next_token = Token::new_synthetic("next");
 
         let iterator_var_expr = || {
-            Rc::new(Expression::Variable(
+            Box::new(Expression::Variable(
                 iterator_variable_name.clone(),
                 iterator_variable_name.span,
             ))
         };
 
         let while_condition = Expression::Call(
-            Rc::new(Expression::Get(
+            Box::new(Expression::Get(
                 iterator_var_expr(),
                 has_next_token,
                 iterator_variable_name.span,
@@ -850,7 +850,7 @@ impl Parser {
         );
 
         let next_call = Expression::Call(
-            Rc::new(Expression::Get(
+            Box::new(Expression::Get(
                 iterator_var_expr(),
                 next_token,
                 iterator_variable_name.span,
@@ -861,7 +861,7 @@ impl Parser {
         );
         let assignment_expr = Expression::Assign(
             variable_name.clone(),
-            Rc::new(next_call),
+            Box::new(next_call),
             variable_name.span.merge(iterator_variable_name.span),
         );
         let assignment_stmt = Statement::Expression(
@@ -871,7 +871,7 @@ impl Parser {
         );
 
         let while_body = Statement::Scope(
-            vec![Rc::new(assignment_stmt), Rc::new(scope.clone())],
+            vec![assignment_stmt, scope.clone()],
             scope.span(),
             scope.line(),
         );
@@ -884,11 +884,7 @@ impl Parser {
         );
 
         Ok(Statement::Scope(
-            vec![
-                Rc::new(iterator_variable),
-                Rc::new(user_variable),
-                Rc::new(while_stmt),
-            ],
+            vec![iterator_variable, user_variable, while_stmt],
             full_loop_span,
             scope.line(),
         ))
@@ -1033,13 +1029,13 @@ impl Parser {
         let start_token = self.previous();
         let start_span = start_token.span;
 
-        let mut statements = Vec::<Rc<Statement>>::new();
+        let mut statements = Vec::<Statement>::new();
 
         while !self.check(&[TokenKind::Punctuation(PunctuationKind::RightBrace)])
             && !self.is_at_end()
         {
             match self.declaration() {
-                Ok(stmt) => statements.push(Rc::new(stmt)),
+                Ok(stmt) => statements.push(stmt),
                 Err(e) => {
                     self.report_error(CompilationError::with_span(e.kind, Some(e.line), e.span));
                     self.synchronize();
@@ -1077,16 +1073,21 @@ impl Parser {
 
             match expr {
                 Expression::Variable(name, _) => {
-                    return Ok(Expression::Assign(name, Rc::new(value), combined_span));
+                    return Ok(Expression::Assign(name, Box::new(value), combined_span));
                 }
                 Expression::Get(object, name, _) => {
-                    return Ok(Expression::Set(object, name, Rc::new(value), combined_span));
+                    return Ok(Expression::Set(
+                        object,
+                        name,
+                        Box::new(value),
+                        combined_span,
+                    ));
                 }
                 Expression::ListGet(target, index, _) => {
                     return Ok(Expression::ListSet(
                         target,
                         index,
-                        Rc::new(value),
+                        Box::new(value),
                         combined_span,
                     ));
                 }
@@ -1118,9 +1119,9 @@ impl Parser {
             let combined_span = if_branch.span().merge(else_branch.span());
 
             return Ok(Expression::Ternary(
-                Rc::new(condition),
-                Rc::new(if_branch),
-                Rc::new(else_branch),
+                Box::new(condition),
+                Box::new(if_branch),
+                Box::new(else_branch),
                 combined_span,
             ));
         }
@@ -1135,7 +1136,7 @@ impl Parser {
             let operator = self.previous();
             let right = self.and()?;
             let combined_span = expr.span().merge(right.span());
-            expr = Expression::Logical(Rc::new(expr), operator, Rc::new(right), combined_span);
+            expr = Expression::Logical(Box::new(expr), operator, Box::new(right), combined_span);
         }
 
         Ok(expr)
@@ -1148,7 +1149,7 @@ impl Parser {
             let operator = self.previous();
             let right = self.equality()?;
             let combined_span = expr.span().merge(right.span());
-            expr = Expression::Logical(Rc::new(expr), operator, Rc::new(right), combined_span);
+            expr = Expression::Logical(Box::new(expr), operator, Box::new(right), combined_span);
         }
 
         Ok(expr)
@@ -1164,7 +1165,7 @@ impl Parser {
             let operator = self.previous();
             let right = self.comparison()?;
             let combined_span = expr.span().merge(right.span());
-            expr = Expression::Arithmetic(Rc::new(expr), operator, Rc::new(right), combined_span);
+            expr = Expression::Arithmetic(Box::new(expr), operator, Box::new(right), combined_span);
         }
 
         Ok(expr)
@@ -1182,7 +1183,7 @@ impl Parser {
             let operator = self.previous();
             let right = self.term()?;
             let combined_span = expr.span().merge(right.span());
-            expr = Expression::Arithmetic(Rc::new(expr), operator, Rc::new(right), combined_span);
+            expr = Expression::Arithmetic(Box::new(expr), operator, Box::new(right), combined_span);
         }
 
         Ok(expr)
@@ -1198,7 +1199,7 @@ impl Parser {
             let operator = self.previous();
             let right = self.factor()?;
             let combined_span = expr.span().merge(right.span());
-            expr = Expression::Arithmetic(Rc::new(expr), operator, Rc::new(right), combined_span);
+            expr = Expression::Arithmetic(Box::new(expr), operator, Box::new(right), combined_span);
         }
 
         Ok(expr)
@@ -1214,7 +1215,7 @@ impl Parser {
             let operator = self.previous();
             let right = self.unary()?;
             let combined_span = expr.span().merge(right.span());
-            expr = Expression::Arithmetic(Rc::new(expr), operator, Rc::new(right), combined_span);
+            expr = Expression::Arithmetic(Box::new(expr), operator, Box::new(right), combined_span);
         }
 
         Ok(expr)
@@ -1231,7 +1232,7 @@ impl Parser {
             let combined_span = operator.span.merge(expression.span());
             return Ok(Expression::Unary(
                 operator,
-                Rc::new(expression),
+                Box::new(expression),
                 combined_span,
             ));
         }
@@ -1261,7 +1262,7 @@ impl Parser {
         {
             let op = self.previous();
             let combined_span = expr.span().merge(op.span);
-            return Ok(Expression::PostFix(op, Rc::new(expr), combined_span));
+            return Ok(Expression::PostFix(op, Box::new(expr), combined_span));
         }
 
         loop {
@@ -1270,7 +1271,7 @@ impl Parser {
             } else if self.try_eat(&[TokenKind::Punctuation(PunctuationKind::Dot)]) {
                 let name = self.expect_token(TokenKind::Identifier, "property name", "'.'")?;
                 let combined_span = expr.span().merge(name.span);
-                expr = Expression::Get(Rc::new(expr), name, combined_span);
+                expr = Expression::Get(Box::new(expr), name, combined_span);
             } else {
                 break;
             }
@@ -1303,7 +1304,7 @@ impl Parser {
         )?;
         let combined_span = callee.span().merge(right_paren.span);
         Ok(Expression::Call(
-            Rc::new(callee),
+            Box::new(callee),
             right_paren,
             arguments,
             combined_span,
@@ -1315,12 +1316,12 @@ impl Parser {
 
         let name = self.expect_token(TokenKind::Identifier, "field name", "'.'")?;
         let combined_span = expr.span().merge(name.span);
-        expr = Expression::Get(Rc::new(expr), name, combined_span);
+        expr = Expression::Get(Box::new(expr), name, combined_span);
 
         while self.try_eat(&[TokenKind::Punctuation(PunctuationKind::Dot)]) {
             let name = self.expect_token(TokenKind::Identifier, "field name", "'.'")?;
             let combined_span = expr.span().merge(name.span);
-            expr = Expression::Get(Rc::new(expr), name, combined_span);
+            expr = Expression::Get(Box::new(expr), name, combined_span);
         }
 
         Ok(expr)
@@ -1409,7 +1410,7 @@ impl Parser {
             "group expression",
         )?;
         let combined_span = start_span.merge(right_paren.span);
-        Ok(Expression::Group(Rc::new(expr), combined_span))
+        Ok(Expression::Group(Box::new(expr), combined_span))
     }
 
     fn collection_expression(
@@ -1419,11 +1420,11 @@ impl Parser {
         kind: CollectionKind,
     ) -> Result<Expression, ParseError> {
         let start_span = self.previous().span;
-        let mut values: Vec<Rc<Expression>> = Vec::new();
+        let mut values: Vec<Expression> = Vec::new();
 
         if !self.check(&[TokenKind::Punctuation(closing)]) {
             loop {
-                values.push(Rc::new(self.expression()?));
+                values.push(self.expression()?);
                 if !self.try_eat(&[TokenKind::Punctuation(PunctuationKind::Comma)]) {
                     break;
                 }

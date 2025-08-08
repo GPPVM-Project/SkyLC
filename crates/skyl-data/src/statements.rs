@@ -1,5 +1,3 @@
-use std::rc::Rc;
-
 use crate::{Span, expressions::Expression, token::Token};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -28,7 +26,7 @@ pub enum Statement {
     While(Expression, Box<Statement>, Span, usize),
     // ForEach é desaçucarado para um While, então não é um nó direto na AST final do parser
     Expression(Expression, Span, usize),
-    Scope(Vec<Rc<Statement>>, Span, usize),
+    Scope(Vec<Statement>, Span, usize),
     Import(Vec<Token>, Span, usize),
     Return(Token, Option<Expression>, Span, usize),
     // endregion:   --- Statements
@@ -40,7 +38,7 @@ pub enum Statement {
     Function(
         Token,
         Vec<FieldDeclaration>,
-        Rc<Statement>,
+        Box<Statement>,
         Expression,
         Span,
         usize,
@@ -50,7 +48,7 @@ pub enum Statement {
     InternalDefinition(
         Token,
         Vec<FieldDeclaration>,
-        Rc<Statement>,
+        Box<Statement>,
         Expression,
         Span,
         usize,

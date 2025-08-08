@@ -1,3 +1,5 @@
+#![allow(clippy::result_large_err)]
+
 use skyl_data::{BuiltinAttributeUsage, FunctionPrototype, Token};
 
 use crate::result::TyResult;

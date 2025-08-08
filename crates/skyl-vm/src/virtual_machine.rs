@@ -8,7 +8,6 @@ use std::{
 };
 
 use fast_log::Config;
-use log::info;
 use skyl_data::{
     CompilerConfig, Instruction,
     bytecode::{Bytecode, Chunk},
@@ -85,7 +84,7 @@ impl VirtualMachine {
             fp: 0,
             chunk: Rc::new(Chunk::new(vec![], vec![])),
             config: config.clone(),
-            stack: stack,
+            stack,
             frame_stack: Vec::new(),
             native_functions: Vec::new(),
             bytecode: None,

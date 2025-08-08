@@ -1,4 +1,4 @@
-use std::rc::Rc;
+#![allow(clippy::result_large_err)]
 
 use skyl_data::{
     BuiltinAttributeUsage, CoersionKind, Expression, FunctionPrototype, Operator, Span, Token,
@@ -16,7 +16,7 @@ impl SemanticAnalyzer {
     pub(crate) fn create_operator_overload(
         &mut self,
         location: &Token,
-        operator: &Rc<Expression>,
+        operator: &Expression,
         from: u32,
         to: u32,
         function_name: String,

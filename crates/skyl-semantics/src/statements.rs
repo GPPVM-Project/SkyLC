@@ -151,7 +151,7 @@ impl SemanticAnalyzer {
                 );
 
                 let _get_kind = self.resolve_expr_type(&Expression::Get(
-                    Rc::new(value.clone()),
+                    Box::new(value.clone()),
                     field.clone(),
                     field.span,
                 ));
@@ -183,7 +183,7 @@ impl SemanticAnalyzer {
         Ok(declarations)
     }
 
-    fn analyze_scope(&mut self, stmts: &Vec<Rc<Statement>>) -> TyResult<TyStmts> {
+    fn analyze_scope(&mut self, stmts: &Vec<Statement>) -> TyResult<TyStmts> {
         let mut annotated_stmts: TyStmts = Vec::new();
 
         self.begin_scope();
@@ -529,16 +529,12 @@ impl SemanticAnalyzer {
             condition,
         )?;
 
-        let annotated_body;
-
-        match body {
-            Statement::Scope(stmts, _, _) => {
-                annotated_body = self
-                    .analyze_scope(stmts)?
-                    .into_iter()
-                    .map(|s| Box::new(s))
-                    .collect()
-            }
+        let annotated_body = match body {
+            Statement::Scope(stmts, _, _) => self
+                .analyze_scope(stmts)?
+                .into_iter()
+                .map(Box::new)
+                .collect(),
             _ => {
                 return Err(CompilationError::new(
                     CompilationErrorKind::InvalidStatementScope {
@@ -547,7 +543,7 @@ impl SemanticAnalyzer {
                     None,
                 ));
             }
-        }
+        };
 
         let annotated_else;
 
@@ -557,7 +553,7 @@ impl SemanticAnalyzer {
                     annotated_else = self
                         .analyze_scope(stmts)?
                         .into_iter()
-                        .map(|s| Box::new(s))
+                        .map(Box::new)
                         .collect();
 
                     Ok(AnnotatedStatement::If(
@@ -1285,7 +1281,7 @@ impl SemanticAnalyzer {
 
             if let Expression::Attribute(name, args, span) = attribute {
                 attribute_usages.push(BuiltinAttributeUsage {
-                    args: args.iter().map(Rc::clone).collect(),
+                    args: args.clone(),
                     name: name.lexeme.clone(),
                     span: *span,
                 });

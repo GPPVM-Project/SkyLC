@@ -1,7 +1,5 @@
 #![allow(clippy::result_large_err)]
 
-use std::rc::Rc;
-
 use skyl_data::{
     AnnotatedExpression, Archetype, Expression, MethodDescriptor, Operator, OperatorKind, Token,
     TokenKind,
@@ -562,9 +560,9 @@ impl SemanticAnalyzer {
 
     fn analyze_set_expr(
         &mut self,
-        target: Rc<Expression>,
+        target: Box<Expression>,
         name: Token,
-        value: Rc<Expression>,
+        value: Box<Expression>,
     ) -> TyResult<AnnotatedExpression> {
         let annotated_target = self.analyze_expr(&target)?;
         let annotated_value = self.analyze_expr(&value)?;
@@ -775,7 +773,7 @@ impl SemanticAnalyzer {
     fn analyze_attribute(
         &mut self,
         token: Token,
-        expressions: Vec<Rc<Expression>>,
+        expressions: Vec<Expression>,
     ) -> TyResult<AnnotatedExpression> {
         let attrib = &self.symbol_table.get_attribute(token.lexeme.clone());
 
@@ -844,7 +842,7 @@ impl SemanticAnalyzer {
         &mut self,
         list: Box<Expression>,
         index: Box<Expression>,
-        value: Rc<Expression>,
+        value: Box<Expression>,
     ) -> TyResult<AnnotatedExpression> {
         let annotated_list = self.analyze_expr(&list)?;
         let annotated_index = self.analyze_expr(&index)?;
