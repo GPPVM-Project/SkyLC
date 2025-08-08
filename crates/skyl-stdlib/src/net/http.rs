@@ -6,7 +6,7 @@ use skyl_ffi::{register_native_funcs, NativeBridge, NativeLibrary};
 pub struct GPPHttpLibrary;
 
 impl GPPHttpLibrary {
-    pub fn native_http_request(args: Vec<Value>) -> Value {
+    pub fn native_http_request(args: &[Value]) -> Value {
         if args.len() < 2 {
             return Value::String(Rc::new("Invalid arguments".to_string()));
         }
@@ -47,9 +47,7 @@ impl GPPHttpLibrary {
                         let full_response = format!("{status}\n{response_body_str}");
                         Value::String(Rc::new(full_response))
                     }
-                    Err(e) => {
-                        Value::String(Rc::new(format!("Failed to read response body: {e}")))
-                    }
+                    Err(e) => Value::String(Rc::new(format!("Failed to read response body: {e}"))),
                 }
             }
             Err(e) => {

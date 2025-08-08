@@ -4,7 +4,7 @@ use skyl_ffi::{register_native_funcs, NativeBridge, NativeLibrary};
 pub struct GPPListLibrary;
 
 impl GPPListLibrary {
-    fn list_len(args: Vec<Value>) -> Value {
+    fn list_len(args: &[Value]) -> Value {
         if let Value::Object(obj_ptr) = &args[0] {
             let len = obj_ptr
                 .borrow()
@@ -19,7 +19,7 @@ impl GPPListLibrary {
         unreachable!();
     }
 
-    fn list_append(args: Vec<Value>) -> Value {
+    fn list_append(args: &[Value]) -> Value {
         if let Value::Object(obj_ptr) = &args[0] {
             let value = &args[1];
             obj_ptr
@@ -36,7 +36,7 @@ impl GPPListLibrary {
         unreachable!()
     }
 
-    fn list_pop(args: Vec<Value>) -> Value {
+    fn list_pop(args: &[Value]) -> Value {
         if let Value::Object(obj_ptr) = &args[0] {
             let value = &args[1];
 

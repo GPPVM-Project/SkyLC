@@ -9,7 +9,7 @@ use skyl_ffi::{register_native_funcs, NativeBridge, NativeLibrary};
 pub struct GPPDefaultFunctionsNativeLibrary;
 
 impl GPPDefaultFunctionsNativeLibrary {
-    fn int(args: Vec<Value>) -> Value {
+    fn int(args: &[Value]) -> Value {
         match &args[0] {
             Value::String(s) => Value::Int(s.trim().parse().unwrap_or_else(|_| panic!("str to int parse error. Input was '{s}'"))),
             Value::Int(i) => Value::Int(*i),
@@ -19,7 +19,7 @@ impl GPPDefaultFunctionsNativeLibrary {
         }
     }
 
-    fn float(args: Vec<Value>) -> Value {
+    fn float(args: &[Value]) -> Value {
         if let Value::String(s) = &args[0] {
             Value::Float(s.trim().parse().expect("str to float parse error."))
         } else {
@@ -27,7 +27,7 @@ impl GPPDefaultFunctionsNativeLibrary {
         }
     }
 
-    fn bool(args: Vec<Value>) -> Value {
+    fn bool(args: &[Value]) -> Value {
         if let Value::Bool(b) = &args[0] {
             Value::Bool(*b)
         } else {
@@ -35,7 +35,7 @@ impl GPPDefaultFunctionsNativeLibrary {
         }
     }
 
-    fn exception(args: Vec<Value>) -> Value {
+    fn exception(args: &[Value]) -> Value {
         if let Value::String(s) = &args[0] {
             eprintln!("{s}");
             std::process::exit(-1);
@@ -44,7 +44,7 @@ impl GPPDefaultFunctionsNativeLibrary {
         unreachable!();
     }
 
-    fn exit(args: Vec<Value>) -> Value {
+    fn exit(args: &[Value]) -> Value {
         if let Value::Int(i) = &args[0] {
             std::process::exit(*i);
         }
@@ -52,7 +52,7 @@ impl GPPDefaultFunctionsNativeLibrary {
         unreachable!()
     }
 
-    fn sleep(args: Vec<Value>) -> Value {
+    fn sleep(args: &[Value]) -> Value {
         if let Value::Int(i) = args[0] {
             sleep(Duration::from_millis(i as u64));
         }
@@ -60,7 +60,7 @@ impl GPPDefaultFunctionsNativeLibrary {
         Value::Void
     }
 
-    fn now_ms(_args: Vec<Value>) -> Value {
+    fn now_ms(_args: &[Value]) -> Value {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("System time before UNIX EPOCH");

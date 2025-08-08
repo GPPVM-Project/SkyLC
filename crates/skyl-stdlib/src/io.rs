@@ -13,7 +13,7 @@ use skyl_ffi::{register_native_funcs, NativeBridge, NativeLibrary};
 pub struct GPPStdIOLibrary;
 
 impl GPPStdIOLibrary {
-    pub fn print(args: Vec<Value>) -> Value {
+    pub fn print(args: &[Value]) -> Value {
         if let Some(val) = args.first() {
             print!("{val}");
             io::stdout().flush().unwrap();
@@ -21,31 +21,31 @@ impl GPPStdIOLibrary {
         Value::Void
     }
 
-    pub fn println(args: Vec<Value>) -> Value {
+    pub fn println(args: &[Value]) -> Value {
         if let Some(val) = args.first() {
             println!("{val}");
         }
         Value::Void
     }
 
-    pub fn debug(args: Vec<Value>) -> Value {
+    pub fn debug(args: &[Value]) -> Value {
         if let Some(val) = args.first() {
             eprintln!("[DEBUG] {val}");
         }
         Value::Void
     }
 
-    pub fn input(_: Vec<Value>) -> Value {
+    pub fn input(_: &[Value]) -> Value {
         let mut buffer = String::new();
         io::stdin().read_line(&mut buffer).unwrap();
         Value::String(Rc::new(buffer.trim_end().to_string()))
     }
 
-    pub fn read_line(_: Vec<Value>) -> Value {
-        Self::input(vec![])
+    pub fn read_line(_: &[Value]) -> Value {
+        Self::input(&[])
     }
 
-    pub fn read_int(_: Vec<Value>) -> Value {
+    pub fn read_int(_: &[Value]) -> Value {
         let mut buffer = String::new();
         io::stdin().read_line(&mut buffer).unwrap();
         match buffer.trim().parse::<i32>() {
@@ -54,7 +54,7 @@ impl GPPStdIOLibrary {
         }
     }
 
-    pub fn read_float(_: Vec<Value>) -> Value {
+    pub fn read_float(_: &[Value]) -> Value {
         let mut buffer = String::new();
         io::stdin().read_line(&mut buffer).unwrap();
         match buffer.trim().parse::<f32>() {
@@ -83,12 +83,10 @@ impl GPPStdIOLibrary {
             .unwrap()
             .to_path_buf();
 
-        
-
         root.join(&path)
     }
 
-    pub fn read_file(args: Vec<Value>) -> Value {
+    pub fn read_file(args: &[Value]) -> Value {
         if let Some(Value::String(path)) = args.first() {
             let path = Self::get_full_path(path.to_string());
 
@@ -103,7 +101,7 @@ impl GPPStdIOLibrary {
         }
     }
 
-    pub fn write_file(args: Vec<Value>) -> Value {
+    pub fn write_file(args: &[Value]) -> Value {
         if args.len() == 2 {
             if let (Value::String(path), Value::String(content)) = (&args[0], &args[1]) {
                 let _ = write(Self::get_full_path(path.to_string()), &**content);
@@ -112,7 +110,7 @@ impl GPPStdIOLibrary {
         Value::Void
     }
 
-    pub fn append_file(args: Vec<Value>) -> Value {
+    pub fn append_file(args: &[Value]) -> Value {
         if args.len() == 2 {
             if let (Value::String(path), Value::String(content)) = (&args[0], &args[1]) {
                 if let Ok(mut file) = OpenOptions::new()

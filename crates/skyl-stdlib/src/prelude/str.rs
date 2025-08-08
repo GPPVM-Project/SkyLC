@@ -6,7 +6,7 @@ use skyl_ffi::{register_native_funcs, NativeBridge, NativeLibrary};
 pub struct GPPStringNativeLibrary;
 
 impl GPPStringNativeLibrary {
-    fn str_len(args: Vec<Value>) -> Value {
+    fn str_len(args: &[Value]) -> Value {
         if let Value::String(characters) = &args[0] {
             return Value::Int(characters.len() as i32);
         }
@@ -14,7 +14,7 @@ impl GPPStringNativeLibrary {
         unreachable!();
     }
 
-    fn str_eq(args: Vec<Value>) -> Value {
+    fn str_eq(args: &[Value]) -> Value {
         match (&args[0], &args[1]) {
             (Value::String(a), Value::String(b)) => Value::Bool(a == b),
             _ => unreachable!(
@@ -24,28 +24,28 @@ impl GPPStringNativeLibrary {
         }
     }
 
-    fn str_starts_with(args: Vec<Value>) -> Value {
+    fn str_starts_with(args: &[Value]) -> Value {
         match (&args[0], &args[1]) {
             (Value::String(a), Value::String(b)) => Value::Bool(a.starts_with(&**b)),
             _ => unreachable!("str_starts_with expects two strings"),
         }
     }
 
-    fn str_ends_with(args: Vec<Value>) -> Value {
+    fn str_ends_with(args: &[Value]) -> Value {
         match (&args[0], &args[1]) {
             (Value::String(a), Value::String(b)) => Value::Bool(a.ends_with(&**b)),
             _ => unreachable!("str_ends_with expects two strings"),
         }
     }
 
-    fn str_contains(args: Vec<Value>) -> Value {
+    fn str_contains(args: &[Value]) -> Value {
         match (&args[0], &args[1]) {
             (Value::String(a), Value::String(b)) => Value::Bool(a.contains(&**b)),
             _ => unreachable!("str_contains expects two strings"),
         }
     }
 
-    fn str_concat(args: Vec<Value>) -> Value {
+    fn str_concat(args: &[Value]) -> Value {
         match (&args[0], &args[1]) {
             (Value::String(a), Value::String(b)) => {
                 let mut result = String::with_capacity(a.len() + b.len());
@@ -57,7 +57,7 @@ impl GPPStringNativeLibrary {
         }
     }
 
-    fn str_find(args: Vec<Value>) -> Value {
+    fn str_find(args: &[Value]) -> Value {
         if let (Value::String(haystack), Value::String(needle)) = (&args[0], &args[1]) {
             let haystack_str = haystack.as_str();
             let needle_str = needle.as_str();
@@ -74,7 +74,7 @@ impl GPPStringNativeLibrary {
         }
     }
 
-    fn str_to_upper(args: Vec<Value>) -> Value {
+    fn str_to_upper(args: &[Value]) -> Value {
         if let Value::String(a) = &args[0] {
             Value::String(Rc::new(a.to_uppercase()))
         } else {
@@ -82,7 +82,7 @@ impl GPPStringNativeLibrary {
         }
     }
 
-    fn str_to_lower(args: Vec<Value>) -> Value {
+    fn str_to_lower(args: &[Value]) -> Value {
         if let Value::String(a) = &args[0] {
             Value::String(Rc::new(a.to_lowercase()))
         } else {
@@ -90,7 +90,7 @@ impl GPPStringNativeLibrary {
         }
     }
 
-    fn str_replace(args: Vec<Value>) -> Value {
+    fn str_replace(args: &[Value]) -> Value {
         match (&args[0], &args[1], &args[2]) {
             (Value::String(a), Value::String(from), Value::String(to)) => {
                 Value::String(Rc::new(a.replace(&**from, to)))
@@ -99,7 +99,7 @@ impl GPPStringNativeLibrary {
         }
     }
 
-    pub fn str_slice(args: Vec<Value>) -> Value {
+    pub fn str_slice(args: &[Value]) -> Value {
         if args.len() != 3 {
             return Value::Void;
         }

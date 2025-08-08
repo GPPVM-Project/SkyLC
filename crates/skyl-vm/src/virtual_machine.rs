@@ -1,8 +1,14 @@
 #![allow(dead_code)]
 
 use core::fmt::Debug;
-use std::{cell::RefCell, rc::Rc};
+use std::{
+    cell::RefCell,
+    io::{BufWriter, Stdout, Write, stdout},
+    rc::Rc,
+};
 
+use fast_log::Config;
+use log::info;
 use skyl_data::{
     CompilerConfig, Instruction,
     bytecode::{Bytecode, Chunk},
@@ -14,14 +20,19 @@ use skyl_ffi::{NativeBridge, NativeFnPtr, NativeFunction, NativeLibrary};
 
 use crate::{frame::Frame, heap::Heap};
 
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 const INITIAL_HEAP_SIZE: usize = 1024; // 1KB
+const MAX_STACK_SIZE: usize = 1024;
+const MAX_STDOUT_BUFFER_SIZE: usize = 1024 * 1024;
 
 #[derive(Debug)]
 pub struct VirtualMachine {
     pub ip: usize,
     pub sp: usize,
     pub fp: usize,
-    pub stack: Vec<Value>,
+    pub stack: [Value; MAX_STACK_SIZE],
     pub bytecode: Option<Bytecode>,
     config: CompilerConfig,
     native_functions: Vec<NativeFunction>,
@@ -30,6 +41,7 @@ pub struct VirtualMachine {
     unsafe_mode: bool,
     heap: Heap,
     halted: bool,
+    stdout: BufWriter<Stdout>,
 }
 
 impl NativeBridge for VirtualMachine {
@@ -41,7 +53,7 @@ impl NativeBridge for VirtualMachine {
                 let index = info.id;
 
                 if self.config.verbose {
-                    println!("Linking: {name} function.");
+                    // println!("Linking: {name} function.");
                 }
 
                 self.native_functions[index as usize] = NativeFunction::new(func, info.arity);
@@ -63,16 +75,17 @@ impl NativeBridge for VirtualMachine {
 impl VirtualMachine {
     pub fn new(config: &CompilerConfig) -> Self {
         let heap = Heap::new(INITIAL_HEAP_SIZE);
-
-        
+        fast_log::init(Config::new().console()).unwrap();
+        let stack: [Value; MAX_STACK_SIZE] = std::array::from_fn(|_| Value::Void);
 
         Self {
+            stdout: BufWriter::new(stdout()),
             ip: 0,
             sp: 0,
             fp: 0,
             chunk: Rc::new(Chunk::new(vec![], vec![])),
             config: config.clone(),
-            stack: vec![Value::Void; 255],
+            stack: stack,
             frame_stack: Vec::new(),
             native_functions: Vec::new(),
             bytecode: None,
@@ -405,14 +418,16 @@ impl VirtualMachine {
     pub fn handle_print(&mut self) {
         let value = self.pop();
 
+        if self.stdout.buffer().len() > MAX_STDOUT_BUFFER_SIZE {
+            self.stdout.flush().unwrap();
+        }
+
         match value {
-            Value::Bool(b) => println!("{b}"),
-            Value::Int(i) => println!("{i}"),
-            Value::Float(f) => println!("{f}"),
-            Value::String(s) => println!("{s}"),
-            Value::Object(obj) => {
-                println!("{}", obj.borrow().to_string());
-            }
+            Value::Bool(b) => writeln!(self.stdout, "{b}").unwrap(),
+            Value::Int(i) => writeln!(self.stdout, "{i}").unwrap(),
+            Value::Float(f) => writeln!(self.stdout, "{f}").unwrap(),
+            Value::String(s) => writeln!(self.stdout, "{s}").unwrap(),
+            Value::Object(obj) => writeln!(self.stdout, "{}", obj.borrow().to_string()).unwrap(),
             _ => todo!(),
         }
     }
@@ -505,21 +520,16 @@ impl VirtualMachine {
     #[inline]
     pub fn handle_invoke_native(&mut self) {
         let index = self.read_u32();
-        let arity = self.read_byte();
+        let arity = self.read_byte() as usize;
 
-        let mut args: Vec<Value> = Vec::new();
+        let args = &self.stack[self.sp - arity..self.sp];
 
-        self.sp -= arity as usize;
-
-        for i in 0..arity as usize {
-            args.push(self.stack[self.sp + i].clone());
-        }
+        self.sp -= arity;
 
         let function = &self.native_functions[index as usize];
         let value = (function.handler)(args);
 
-        if let Value::Void = value {
-        } else {
+        if !matches!(value, Value::Void) {
             self.push(value);
         }
     }
@@ -559,9 +569,10 @@ impl VirtualMachine {
         let value = self.pop();
 
         if let Value::Bool(b) = value
-            && !b {
-                self.ip += offset as usize;
-            }
+            && !b
+        {
+            self.ip += offset as usize;
+        }
     }
 
     #[inline]
@@ -570,9 +581,10 @@ impl VirtualMachine {
         let value = self.pop();
 
         if let Value::Bool(b) = value
-            && b {
-                self.ip += offset as usize;
-            }
+            && b
+        {
+            self.ip += offset as usize;
+        }
     }
 
     #[inline]
@@ -640,7 +652,7 @@ impl VirtualMachine {
         })
     }
 
-    fn invalidate_native_call(_: Vec<Value>) -> Value {
+    fn invalidate_native_call(_: &[Value]) -> Value {
         println!("Invalid native call index detected!");
         std::process::exit(0);
     }
@@ -678,6 +690,7 @@ impl VirtualMachine {
         self.execution_loop();
 
         self.heap.clear();
+        self.stdout.flush().unwrap();
 
         if self.config.verbose {
             println!("Virtual machine took: {:?}", timer.elapsed());
@@ -695,10 +708,7 @@ impl VirtualMachine {
             let instruction = unsafe { std::mem::transmute::<u8, Instruction>(byte) };
 
             if self.halted {
-                println!(
-                    "Process finished with code {}.",
-                    self.stack[self.fp]
-                );
+                println!("Process finished with code {}.", self.stack[self.fp]);
                 break;
             }
 
@@ -771,10 +781,7 @@ impl VirtualMachine {
         let byte3 = self.read_byte();
         let byte4 = self.read_byte();
 
-        ((byte1 as u32) << 24)
-            | ((byte2 as u32) << 16)
-            | ((byte3 as u32) << 8)
-            | (byte4 as u32)
+        ((byte1 as u32) << 24) | ((byte2 as u32) << 16) | ((byte3 as u32) << 8) | (byte4 as u32)
     }
 
     fn read_byte(&mut self) -> u8 {

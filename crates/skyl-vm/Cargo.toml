@@ -7,3 +7,6 @@ edition = "2024"
 skyl-ffi = { path = "../skyl-ffi" }
 skyl-data = { path = "../skyl-data" }
 skyl-driver = { path = "../skyl-driver" }
+mimalloc = "0.1.47"
+fast_log = "1.7.7"
+log = "0.4.27"

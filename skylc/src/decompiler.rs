@@ -163,7 +163,7 @@ impl Decompiler {
                         code[*index + 4],
                     );
 
-                    println!("{instr_index}  {padded_instruction}     ; {offset}");
+                    println!("{instr_index}  {padded_instruction}     ; to {offset}");
                     *index += 4;
                 }
                 _ => {

@@ -1,6 +1,6 @@
 use skyl_data::objects::Value;
 
-pub type NativeFnPtr = fn(Vec<Value>) -> Value;
+pub type NativeFnPtr = fn(&[Value]) -> Value;
 
 #[derive(Clone, Debug)]
 pub struct NativeFunction {

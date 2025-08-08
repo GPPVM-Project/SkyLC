@@ -5,7 +5,7 @@ use skyl_ffi::{register_native_funcs, NativeBridge, NativeLibrary};
 pub struct GPPFloatLibrary;
 
 impl GPPFloatLibrary {
-    fn float_sqrt(args: Vec<Value>) -> Value {
+    fn float_sqrt(args: &[Value]) -> Value {
         if let Value::Float(a) = args[0] {
             Value::Float(a.sqrt())
         } else {
@@ -14,7 +14,7 @@ impl GPPFloatLibrary {
         }
     }
 
-    fn float_to_int(args: Vec<Value>) -> Value {
+    fn float_to_int(args: &[Value]) -> Value {
         if let Value::Float(f) = &args[0] {
             return Value::Int(*f as i32);
         }
@@ -22,7 +22,7 @@ impl GPPFloatLibrary {
         unreachable!("Found value '{}'.", &args[0]);
     }
 
-    fn float_to_string(args: Vec<Value>) -> Value {
+    fn float_to_string(args: &[Value]) -> Value {
         if let Value::Float(f) = &args[0] {
             return Value::String(Rc::new(f.to_string()));
         }

@@ -569,17 +569,20 @@ impl IRGenerator {
             code.append(&mut arg_code);
         }
 
-        code.push(Instruction::InvokeNative as u8);
+        if proto.name == "println" {
+            code.push(Instruction::Print as u8);
+        } else {
+            code.push(Instruction::InvokeNative as u8);
 
-        let index_bytes = self.split_u32(function_table_index);
+            let index_bytes = self.split_u32(function_table_index);
 
-        code.push(index_bytes.0);
-        code.push(index_bytes.1);
-        code.push(index_bytes.2);
-        code.push(index_bytes.3);
+            code.push(index_bytes.0);
+            code.push(index_bytes.1);
+            code.push(index_bytes.2);
+            code.push(index_bytes.3);
 
-        code.push(proto.arity as u8);
-
+            code.push(proto.arity as u8);
+        }
         code
     }
 
