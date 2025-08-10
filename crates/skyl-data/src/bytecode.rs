@@ -1,8 +1,4 @@
 use crate::{NativeFunctionInfo, objects::Value};
-use aead::rand_core::RngCore;
-use aes_gcm::Aes256Gcm;
-use aes_gcm::Nonce;
-use aes_gcm::aead::{Aead, KeyInit, OsRng, generic_array::GenericArray};
 use bincode::{
     Encode,
     config::{self, Configuration},
@@ -11,6 +7,7 @@ use bincode::{
     error::{DecodeError, EncodeError},
 };
 use serde::{Deserialize, Serialize, ser::SerializeStruct};
+use sha2::{Digest, Sha256};
 use std::{
     collections::HashMap,
     fs::File,
@@ -92,60 +89,48 @@ impl Bytecode {
         self.functions[&function_id].chunk.clone()
     }
 
-    pub fn save_to_file<P: AsRef<Path>>(
-        &self,
-        path: P,
-        key_bytes: &[u8; 32],
-    ) -> Result<(), EncodeError> {
+    pub fn save_to_file<P: AsRef<Path>>(&self, path: P) -> Result<(), EncodeError> {
         let encoded: Vec<u8> = encode_to_vec(self, BINCODE_CONFIG)?;
 
-        let key = GenericArray::from_slice(key_bytes);
-        let cipher = Aes256Gcm::new(key);
-
-        let mut nonce_bytes = [0u8; 12];
-        OsRng.fill_bytes(&mut nonce_bytes);
-        let nonce = Nonce::from_slice(&nonce_bytes);
-
-        let ciphertext = cipher
-            .encrypt(nonce, encoded.as_ref())
-            .map_err(|e| EncodeError::OtherString(e.to_string()))?;
+        let mut hasher = Sha256::new();
+        hasher.update(&encoded);
+        let hash = hasher.finalize();
 
         let mut file = File::create(path).map_err(|e| EncodeError::Io { inner: e, index: 0 })?;
-        file.write_all(&nonce_bytes)
-            .and_then(|_| file.write_all(&ciphertext))
+        file.write_all(&hash)
+            .and_then(|_| file.write_all(&encoded))
             .map_err(|e| EncodeError::Io { inner: e, index: 0 })?;
 
         Ok(())
     }
 
-    pub fn load_from_file<P: AsRef<Path>>(
-        path: P,
-        key_bytes: &[u8; 32],
-    ) -> Result<Self, DecodeError> {
+    pub fn load_from_file<P: AsRef<Path>>(path: P) -> Result<Self, DecodeError> {
         let mut file =
             File::open(path).map_err(|e| DecodeError::OtherString(format!("IO Error: {e}")))?;
         let mut buffer = Vec::new();
         file.read_to_end(&mut buffer)
             .map_err(|e| DecodeError::OtherString(format!("IO Error: {e}")))?;
 
-        if buffer.len() < 12 {
+        if buffer.len() < 32 {
             return Err(DecodeError::OtherString(
-                "The file is too small to contain checksum".to_string(),
+                "The file is too small to contain hash".to_string(),
             ));
         }
 
-        let (nonce_bytes, ciphertext) = buffer.split_at(12);
-        let nonce = Nonce::from_slice(nonce_bytes);
+        let (hash_bytes, data_bytes) = buffer.split_at(32);
 
-        let key = GenericArray::from_slice(key_bytes);
-        let cipher = Aes256Gcm::new(key);
+        let mut hasher = Sha256::new();
+        hasher.update(data_bytes);
+        let calculated_hash = hasher.finalize();
 
-        let decrypted = cipher
-            .decrypt(nonce, ciphertext)
-            .map_err(|_| DecodeError::OtherString("Failed to decrypt file".to_string()))?;
+        if calculated_hash.as_slice() != hash_bytes {
+            return Err(DecodeError::OtherString(
+                "Hash mismatch - the  file may be corrupted".to_string(),
+            ));
+        }
 
         let bytecode: Result<(Bytecode, usize), DecodeError> =
-            bincode::serde::decode_from_slice(&decrypted, BINCODE_CONFIG);
+            bincode::serde::decode_from_slice(data_bytes, BINCODE_CONFIG);
 
         match bytecode {
             Ok(b) => Ok(b.0),

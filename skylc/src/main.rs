@@ -11,12 +11,12 @@ use skyl_semantics::SemanticAnalyzer;
 use skyl_stdlib::StdLibrary;
 use skyl_vm::virtual_machine::VirtualMachine;
 use skylc::{
-    config::{decode_base64_key, load_config},
+    config::load_config,
     decompiler::Decompiler,
     find_stdlib_path,
     version::{CODENAME, VERSION},
 };
-use std::{cell::RefCell, ffi::OsStr, rc::Rc};
+use std::{cell::RefCell, ffi::OsStr, path::PathBuf, rc::Rc};
 
 use cli::{Cli, Commands, CompileArgs};
 use skyl_driver::{
@@ -59,7 +59,7 @@ fn main() -> Result<()> {
 }
 
 fn compile(args: &CompileArgs) -> Result<()> {
-    let skyl_config = load_config().map_err(|e| Error::msg(e.to_string()))?;
+    let _skyl_config = load_config().map_err(|e| Error::msg(e.to_string()))?;
 
     if args.output.extension() != Some(OsStr::new("grc")) {
         return Err(Error::msg("Please specify `.grc` file for output argument"));
@@ -118,11 +118,8 @@ fn compile(args: &CompileArgs) -> Result<()> {
     let bytecode_gen = BytecodeGenerator::new();
     let bytecode = bytecode_gen.generate(ir);
 
-    let key_bytes = decode_base64_key(&skyl_config.bytecode.checksum_key)
-        .map_err(|e| Error::msg(format!("Invalid checksum key base64: {e}")))?;
-
     bytecode
-        .save_to_file(&args.output, &key_bytes)
+        .save_to_file(&args.output)
         .map_err(|e| Error::msg(format!("Compilation Error: {e}")))
         .with_context(|| format!("Failed to save bytecode to '{}'", args.output.display()))?;
 
@@ -130,19 +127,11 @@ fn compile(args: &CompileArgs) -> Result<()> {
 }
 
 fn run(args: &RunArgs) -> anyhow::Result<()> {
-    let skyl_config = load_config().map_err(|e| Error::msg(e.to_string()))?;
+    let _skyl_config = load_config().map_err(|e| Error::msg(e.to_string()))?;
 
-    let stdlib_path = match find_stdlib_path()? {
-        Some(p) => p,
-        None => anyhow::bail!("The required environment variable SKYL_LIB is not defined."),
-    };
+    let config = CompilerConfig::new(args.bytecode_file.clone(), PathBuf::new(), args.verbose);
 
-    let config = CompilerConfig::new(args.bytecode_file.clone(), stdlib_path, args.verbose);
-
-    let key_bytes = decode_base64_key(&skyl_config.bytecode.checksum_key)
-        .map_err(|e| Error::msg(format!("Invalid checksum key base64: {e}")))?;
-
-    let bytecode = Bytecode::load_from_file(&args.bytecode_file, &key_bytes).context(format!(
+    let bytecode = Bytecode::load_from_file(&args.bytecode_file).context(format!(
         "Failed to load bytecode from '{}'",
         args.bytecode_file.display()
     ))?;
