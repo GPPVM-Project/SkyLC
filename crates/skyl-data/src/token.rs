@@ -94,6 +94,8 @@ pub enum KeywordKind {
     Builtin,
     Attribute,
     Internal,
+    Pub,
+    Mod,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]

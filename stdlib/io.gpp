@@ -1,29 +1,10 @@
-// Imprime um valor sem quebra de linha
 native def print(x: object) -> void;
-
-// Imprime um valor com quebra de linha
 native def println(x: object) -> void;
-
-// Imprime um valor no stderr com tag [DEBUG]
 native def debug(x: object) -> void;
-
-// Lê uma linha da entrada padrão (stdin) como string
 native def input() -> str;
-
-// Igual ao input(), alias mais descritivo
 native def read_line() -> str;
-
-// Lê uma linha e tenta converter para int (i32)
 native def read_int() -> int;
-
-// Lê uma linha e tenta converter para float (f32)
 native def read_float() -> float;
-
-// Lê o conteúdo completo de um arquivo e retorna como string
 native def read_file(path: str) -> str;
-
-// Escreve uma string em um arquivo, sobrescrevendo o conteúdo anterior
 native def write_file(path: str, contents: str) -> void;
-
-// Acrescenta uma string ao final de um arquivo existente (append)
 native def append_file(path: str, contents: str) -> void;

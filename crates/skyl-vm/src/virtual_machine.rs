@@ -417,7 +417,7 @@ impl VirtualMachine {
     pub fn handle_print(&mut self) {
         let value = self.pop();
 
-        if self.stdout.buffer().len() > MAX_STDOUT_BUFFER_SIZE {
+        if self.stdout.buffer().len() > MAX_STDOUT_BUFFER_SIZE || !self.config.batch_stdout {
             self.stdout.flush().unwrap();
         }
 

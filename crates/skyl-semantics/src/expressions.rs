@@ -1,8 +1,8 @@
 #![allow(clippy::result_large_err)]
 
 use skyl_data::{
-    AnnotatedExpression, Archetype, Expression, MethodDescriptor, Operator, OperatorKind, Token,
-    TokenKind,
+    AnnotatedExpression, Archetype, Expression, MethodDescriptor, Operator, OperatorKind, Span,
+    Token, TokenKind, Visibility,
 };
 use skyl_driver::{
     errors::{CompilationError, CompilationErrorKind},
@@ -75,7 +75,7 @@ impl SemanticAnalyzer {
                 self.analyze_call_expression(&callee, &paren, &args)
             }
             Expression::Tuple(_, _) => todo!(),
-            Expression::List(_, _) => self.analyze_collection(expr),
+            Expression::List(_elements, span) => self.analyze_list(expr, span),
             Expression::TypeComposition(_, _) => todo!(),
             Expression::Attribute(token, expressions, _) => {
                 self.analyze_attribute(token, expressions)
@@ -624,6 +624,30 @@ impl SemanticAnalyzer {
                 Some(prototype) => {
                     let prototype = prototype.clone();
 
+                    let function_visibility = prototype.visibility;
+                    let file = prototype.file;
+
+                    if !function_visibility.can_access(self.current_file, file, None, None) {
+                        return Err(CompilationError::with_span(
+                            CompilationErrorKind::VisibilityError {
+                                location: self
+                                    .ctx
+                                    .clone()
+                                    .unwrap()
+                                    .borrow_mut()
+                                    .get_file(&file)
+                                    .path
+                                    .display()
+                                    .to_string(),
+                                symbol: prototype.name.clone(),
+                                visibilty: prototype.visibility.to_string(),
+                                requested: "pub".into(),
+                            },
+                            Some(name.line),
+                            name.span,
+                        ));
+                    }
+
                     if prototype.arity != args.len() {
                         return Err(CompilationError::with_span(
                             CompilationErrorKind::MismatchArgumentCount {
@@ -740,36 +764,6 @@ impl SemanticAnalyzer {
         }
     }
 
-    /// Analyzes a collection expression (e.g., a list or set of elements).
-    ///
-    /// This function processes a collection expression, ensuring its elements are valid and their types
-    /// are correctly inferred. If the expression is a list, it iterates over its elements, annotates them
-    /// with their respective types, and returns an `AnnotatedExpression` representing the list.
-    ///
-    /// # Parameters
-    /// - `collection`: The collection expression to be analyzed.
-    ///
-    /// # Returns
-    /// - An `AnnotatedExpression` representing the collection, with its elements' types annotated.
-    ///
-    /// # Errors
-    /// - Raises an error if the collection is of an invalid kind (i.e., not a list).
-    fn analyze_collection(&mut self, collection: &Expression) -> TyResult<AnnotatedExpression> {
-        let kind = self.resolve_iterator_kind(collection)?;
-
-        if let Expression::List(elements, _) = collection {
-            let mut annotated_elements = Vec::new();
-
-            for element in elements {
-                annotated_elements.push(Box::new(self.analyze_expr(element)?));
-            }
-
-            Ok(AnnotatedExpression::List(annotated_elements, kind))
-        } else {
-            gpp_error!("Invalid collection kind.");
-        }
-    }
-
     fn analyze_attribute(
         &mut self,
         token: Token,
@@ -865,6 +859,37 @@ impl SemanticAnalyzer {
         let callee_kind = self.resolve_expr_type(callee)?;
 
         if callee_kind.borrow().methods.contains_key(&token.lexeme) {
+            let prototype = callee_kind.borrow().methods[&token.lexeme].clone();
+
+            let function_visibility = prototype.visibility;
+            let file = prototype.file;
+
+            if !function_visibility.can_access(
+                self.current_file,
+                file,
+                Some(callee_kind.borrow().id),
+                Some(prototype.owner_type_id),
+            ) {
+                return Err(CompilationError::with_span(
+                    CompilationErrorKind::VisibilityError {
+                        location: self
+                            .ctx
+                            .clone()
+                            .unwrap()
+                            .borrow_mut()
+                            .get_file(&file)
+                            .path
+                            .display()
+                            .to_string(),
+                        symbol: prototype.name.clone(),
+                        visibilty: prototype.visibility.to_string(),
+                        requested: "pub".into(),
+                    },
+                    Some(token.line),
+                    token.span,
+                ));
+            }
+
             return Ok(callee_kind.borrow().methods[&token.lexeme].clone());
         }
 
@@ -876,5 +901,13 @@ impl SemanticAnalyzer {
             Some(token.line),
             token.span,
         ))
+    }
+
+    pub(crate) fn analyze_list(
+        &self,
+        _expr: &Expression,
+        _span: Span,
+    ) -> Result<AnnotatedExpression, CompilationError> {
+        todo!()
     }
 }

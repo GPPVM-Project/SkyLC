@@ -82,6 +82,7 @@ impl From<&CompilationError> for Option<MietteCompilationError> {
             CompilationErrorKind::MismatchArgumentCount { .. } => "Argument count mismatch",
             CompilationErrorKind::AssignTypeError { .. } => "Assign type error",
             CompilationErrorKind::MainFunctionReturnKind => "Invalid main function return kind",
+            CompilationErrorKind::VisibilityError { .. } => "Visibility error",
         };
 
         Some(MietteCompilationError {

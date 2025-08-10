@@ -10,49 +10,49 @@ native def str_slice(s: str, start: int, end: int) -> str;
 native def str_concat(a: str, b: str) -> str;
 native def str_len(s: str) -> int;
 
-internal def contains(self: str, substr: str) -> bool {
+pub internal def contains(self: str, substr: str) -> bool {
     return str_contains(self, substr);
 }
 
-internal def starts_with(self: str, prefix: str) -> bool {
+pub internal def starts_with(self: str, prefix: str) -> bool {
     return str_starts_with(self, prefix);
 }
 
-internal def ends_with(self: str, suffix: str) -> bool {
+pub internal def ends_with(self: str, suffix: str) -> bool {
     return str_ends_with(self, suffix);
 }
 
-internal def index_of(self: str, substr: str) -> int {
+pub internal def index_of(self: str, substr: str) -> int {
     return str_find(self, substr);
 }
 
-internal def sub_str(self: str, start: int, end: int) -> str {
+pub internal def sub_str(self: str, start: int, end: int) -> str {
     return str_slice(self, start, end);
 }
 
-internal def concat(self: str, other: str) -> str {
+pub internal def concat(self: str, other: str) -> str {
     return str_concat(self, other);
 }
 
-internal def to_string(self: str) -> str {
+pub internal def to_string(self: str) -> str {
     return self;
 }
 
-internal def to_upper(self: str) -> str {
+pub internal def to_upper(self: str) -> str {
     return str_to_upper(self);
 }
 
-internal def length(self: str) -> int {
+pub internal def length(self: str) -> int {
     return str_len(self);
 }
 
 #[operator("+")]
-internal def add(self: str, other: str) -> str {
+pub internal def add(self: str, other: str) -> str {
     return self.concat(other);
 }
 
 #[operator("*")]
-internal def repeat(self: str, other: int) -> str {
+pub internal def repeat(self: str, other: int) -> str {
     let result = "";
 
     while other > 0 {

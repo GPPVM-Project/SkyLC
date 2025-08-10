@@ -1,14 +1,53 @@
-use crate::{Span, expressions::Expression, token::Token};
+use std::fmt::Display;
+
+use crate::{SourceFileID, Span, expressions::Expression, token::Token};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct FieldDeclaration {
+    pub access: Visibility,
     pub name: Token,
     pub kind: Expression,
 }
 
 impl FieldDeclaration {
-    pub fn new(name: Token, kind: Expression) -> Self {
-        FieldDeclaration { name, kind }
+    pub fn new(access: Visibility, name: Token, kind: Expression) -> Self {
+        FieldDeclaration { access, name, kind }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Copy)]
+pub enum Visibility {
+    Public,
+    Private,
+    Module,
+}
+
+impl Visibility {
+    pub fn can_access(
+        &self,
+        visitor_file: SourceFileID,
+        owner_file: SourceFileID,
+        visitor_type: Option<u32>,
+        owner_type: Option<u32>,
+    ) -> bool {
+        match self {
+            Visibility::Public => true,
+            Visibility::Module => visitor_file == owner_file,
+            Visibility::Private => match (visitor_type, owner_type) {
+                (Some(v_type), Some(o_type)) => v_type == o_type,
+                _ => visitor_file == owner_file,
+            },
+        }
+    }
+}
+
+impl Display for Visibility {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Visibility::Public => "pub",
+            Visibility::Private => "private",
+            Visibility::Module => "mod",
+        })
     }
 }
 
@@ -34,8 +73,16 @@ pub enum Statement {
     // region:   --- Declarations
     Decorator(Token, Vec<Expression>, Span, usize),
     BuiltinAttribute(Token, Vec<Token>, Span, usize),
-    Type(Token, Vec<Token>, Vec<FieldDeclaration>, Span, usize),
+    Type(
+        Visibility,
+        Token,
+        Vec<Token>,
+        Vec<FieldDeclaration>,
+        Span,
+        usize,
+    ),
     Function(
+        Visibility,
         Token,
         Vec<FieldDeclaration>,
         Box<Statement>,
@@ -46,6 +93,7 @@ pub enum Statement {
     Variable(Token, Option<Expression>, Span, usize),
     DestructurePattern(Vec<Token>, Expression, Span, usize),
     InternalDefinition(
+        Visibility,
         Token,
         Vec<FieldDeclaration>,
         Box<Statement>,
@@ -74,11 +122,11 @@ impl Statement {
             Statement::Return(_, _, span, _) => *span,
             Statement::Decorator(_, _, span, _) => *span,
             Statement::BuiltinAttribute(_, _, span, _) => *span,
-            Statement::Type(_, _, _, span, _) => *span,
-            Statement::Function(_, _, _, _, span, _) => *span,
+            Statement::Type(_, _, _, _, span, _) => *span,
+            Statement::Function(_, _, _, _, _, span, _) => *span,
             Statement::Variable(_, _, span, _) => *span,
             Statement::DestructurePattern(_, _, span, _) => *span,
-            Statement::InternalDefinition(_, _, _, _, span, _) => *span,
+            Statement::InternalDefinition(_, _, _, _, _, span, _) => *span,
             Statement::NativeFunction(_, _, _, span, _) => *span,
 
             _ => Span { start: 0, end: 1 },
@@ -95,11 +143,11 @@ impl Statement {
             Statement::Return(_, _, _, line) => *line,
             Statement::Decorator(_, _, _, line) => *line,
             Statement::BuiltinAttribute(_, _, _, line) => *line,
-            Statement::Type(_, _, _, _, line) => *line,
-            Statement::Function(_, _, _, _, _, line) => *line,
+            Statement::Type(_, _, _, _, _, line) => *line,
+            Statement::Function(_, _, _, _, _, _, line) => *line,
             Statement::Variable(_, _, _, line) => *line,
             Statement::DestructurePattern(_, _, _, line) => *line,
-            Statement::InternalDefinition(_, _, _, _, _, line) => *line,
+            Statement::InternalDefinition(_, _, _, _, _, _, line) => *line,
             Statement::NativeFunction(_, _, _, _, line) => *line,
 
             _ => 0,

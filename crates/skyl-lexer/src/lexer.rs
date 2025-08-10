@@ -24,6 +24,8 @@ pub fn create_keywords() -> HashMap<String, TokenKind> {
         "global".to_string(),
         TokenKind::Keyword(KeywordKind::Global),
     );
+    keywords.insert("pub".to_string(), TokenKind::Keyword(KeywordKind::Pub));
+    keywords.insert("mod".to_string(), TokenKind::Keyword(KeywordKind::Mod));
     keywords.insert("let".to_string(), TokenKind::Keyword(KeywordKind::Let));
     keywords.insert("true".to_string(), TokenKind::Literal(Literal::Boolean));
     keywords.insert("false".to_string(), TokenKind::Literal(Literal::Boolean));

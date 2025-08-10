@@ -1,4 +1,4 @@
-internal def to_string(self: bool) -> str {
+pub internal def to_string(self: bool) -> str {
     if self {
         return "true";
     }

@@ -174,6 +174,12 @@ pub enum CompilationErrorKind {
         name: String,
     },
     MainFunctionReturnKind,
+    VisibilityError {
+        symbol: String,
+        visibilty: String,
+        requested: String,
+        location: String,
+    },
 }
 
 #[derive(Debug)]

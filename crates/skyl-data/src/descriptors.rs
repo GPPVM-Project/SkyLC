@@ -6,13 +6,23 @@ use std::{
     rc::Rc,
 };
 
+use crate::{SourceFileID, Visibility};
+
 #[derive(Debug, Clone)]
 pub struct TypeDescriptor {
+    pub file: SourceFileID,
+    pub visibility: Visibility,
     pub name: String,
     pub id: u32,
     pub archetypes: HashSet<Archetype>,
     pub fields: HashMap<String, FieldDescriptor>,
     pub methods: HashMap<String, MethodDescriptor>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GenericParameter {
+    pub name: String,
+    pub constraints: HashSet<Archetype>,
 }
 
 impl PartialEq for TypeDescriptor {
@@ -50,6 +60,19 @@ impl Hash for MethodParameter {
 
 #[derive(Debug, Clone)]
 pub struct MethodDescriptor {
+    pub file: SourceFileID,
+    pub visibility: Visibility,
+    pub name: String,
+    pub params: Vec<MethodParameter>,
+    pub arity: usize,
+    pub owner_type_id: u32,
+    pub return_kind_id: u32,
+    pub is_native: bool,
+}
+
+pub struct MethodDescriptorParams {
+    pub file: SourceFileID,
+    pub visibility: Visibility,
     pub name: String,
     pub params: Vec<MethodParameter>,
     pub arity: usize,
@@ -59,21 +82,16 @@ pub struct MethodDescriptor {
 }
 
 impl MethodDescriptor {
-    pub fn new(
-        name: String,
-        params: Vec<MethodParameter>,
-        arity: usize,
-        owner_type_id: u32,
-        return_kind_id: u32,
-        is_native: bool,
-    ) -> Self {
+    pub fn new(params: MethodDescriptorParams) -> Self {
         Self {
-            name,
-            params,
-            arity,
-            owner_type_id,
-            return_kind_id,
-            is_native,
+            file: params.file,
+            visibility: params.visibility,
+            name: params.name,
+            params: params.params,
+            arity: params.arity,
+            owner_type_id: params.owner_type_id,
+            return_kind_id: params.return_kind_id,
+            is_native: params.is_native,
         }
     }
 }
@@ -101,12 +119,16 @@ impl PartialEq for MethodDescriptor {
 
 impl TypeDescriptor {
     pub fn new(
+        file: SourceFileID,
+        visibility: Visibility,
         name: String,
         archetypes: HashSet<Archetype>,
         fields: HashMap<String, FieldDescriptor>,
         id: u32,
     ) -> Self {
         Self {
+            file,
+            visibility,
             name,
             archetypes,
             fields,
@@ -117,6 +139,8 @@ impl TypeDescriptor {
 
     pub fn from_type_decl(decl: TypeDecl) -> Self {
         Self {
+            file: decl.file,
+            visibility: decl.access,
             archetypes: decl.archetypes,
             fields: HashMap::new(),
             name: decl.name,
@@ -130,6 +154,8 @@ impl TypeDescriptor {
         fields: HashMap<String, FieldDescriptor>,
     ) -> Self {
         Self {
+            file: decl.file,
+            visibility: decl.access,
             archetypes: decl.archetypes,
             fields,
             name: decl.name,
@@ -142,8 +168,10 @@ impl TypeDescriptor {
         self.archetypes.contains(archetype)
     }
 
-    pub fn empty() -> TypeDescriptor {
+    pub fn empty(file: SourceFileID, visibility: Visibility) -> TypeDescriptor {
         TypeDescriptor {
+            file,
+            visibility,
             name: String::new(),
             id: 0,
             archetypes: HashSet::new(),
@@ -195,14 +223,18 @@ impl Archetype {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct TypeDecl {
+    pub file: SourceFileID,
+    pub access: Visibility,
     pub name: String,
     pub kind_id: u32,
     pub archetypes: HashSet<Archetype>,
 }
 
 impl TypeDecl {
-    pub fn new(name: String, kind_id: u32) -> Self {
+    pub fn new(file: SourceFileID, access: Visibility, name: String, kind_id: u32) -> Self {
         Self {
+            file,
+            access,
             name,
             kind_id,
             archetypes: HashSet::new(),

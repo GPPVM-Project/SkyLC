@@ -208,7 +208,7 @@ fn format_generic_error(error: &CompilationError, file: &SourceFile) -> String {
 fn notefy_error(error: &CompilationError) -> Vec<String> {
     match &error.kind {
         CompilationErrorKind::IllegalCharacter(_) => vec![format!("For Skyl constructions, use ASCII characters and valid symbols, other characters can be used inside strings"),
-                                                    format!("For more informations consult the Skyl documentation")],
+                                                        format!("For more informations consult the Skyl documentation")],
         CompilationErrorKind::InvalidNativeDeclaration => todo!(),
         CompilationErrorKind::InvalidBuiltinDeclaration => todo!(),
         CompilationErrorKind::InvalidKeyword { keyword: _ } => todo!(),
@@ -216,10 +216,10 @@ fn notefy_error(error: &CompilationError) -> Vec<String> {
         CompilationErrorKind::ArgumentLimitOverflow => todo!(),
         CompilationErrorKind::UnexpectedToken { token: _ } => vec![],
         CompilationErrorKind::ExpectedToken {
-                                                        expect: _,
-                                                        found: _,
-                                                        after: _,
-                                                    } => vec![],
+                                                            expect: _,
+                                                            found: _,
+                                                            after: _,
+                                                        } => vec![],
         CompilationErrorKind::ExpectedConstruction { expect: _, found: _ } => todo!(),
         CompilationErrorKind::MissingMainFunction => todo!(),
         CompilationErrorKind::DuplicatedVariable { name: _, previous: _ } => todo!(),
@@ -231,10 +231,10 @@ fn notefy_error(error: &CompilationError) -> Vec<String> {
         CompilationErrorKind::DepthError { msg: _ } => vec![],
         CompilationErrorKind::InvalidStatementUsage { error: _ } => vec![],
         CompilationErrorKind::ExpectType {
-                                                        expect: _,
-                                                        found: _,
-                                                        compiler_msg: _,
-                                                    } => vec![],
+                                                            expect: _,
+                                                            found: _,
+                                                            compiler_msg: _,
+                                                        } => vec![],
         CompilationErrorKind::ExpectReturnType { expect: _, found: _ } => vec![],
         CompilationErrorKind::UnexpectedReturnValue { found: _ } => todo!(),
         CompilationErrorKind::TypeAssertion { msg: _ } => todo!(),
@@ -245,10 +245,10 @@ fn notefy_error(error: &CompilationError) -> Vec<String> {
         CompilationErrorKind::ModuleNotFound { path: _ } => vec![],
         CompilationErrorKind::ModuleAccessDenied { path: _, full_path: _ } => todo!(),
         CompilationErrorKind::ModuleReadError {
-                                                        path: _,
-                                                        full_path: _,
-                                                        error: _,
-                                                    } => todo!(),
+                                                            path: _,
+                                                            full_path: _,
+                                                            error: _,
+                                                        } => todo!(),
         CompilationErrorKind::UnsupportedFeature { feature: _ } => vec![],
         CompilationErrorKind::InvalidLiteral { line: _ } => todo!(),
         CompilationErrorKind::InvalidPostfixOperatorUsage { msg: _ } => todo!(),
@@ -262,28 +262,31 @@ fn notefy_error(error: &CompilationError) -> Vec<String> {
         CompilationErrorKind::MismatchAttrbuteArgument { arg: _, accepted: _ } => vec![],
         CompilationErrorKind::InvalidConstantEvaluation(_) => todo!(),
         CompilationErrorKind::OperatorOverloadNotFound { this, other, operator: _ } => {
-                                vec![format!("#[coersion(op)]"), format!("def overload_name(self: {}, other: {}) -> SomeKind", this, other)]
-                        },
+                                    vec![format!("#[coersion(op)]"), format!("def overload_name(self: {}, other: {}) -> SomeKind", this, other)]
+                            },
         CompilationErrorKind::DuplicatedDefinition { kind: _, definition: _, target: _ } => vec![],
         CompilationErrorKind::SymbolNotFound { symbol_kind: _, symbol_name: _ } => vec![],
         CompilationErrorKind::MismatchArgumentCount { expected: _, found: _, function_name: _ } => vec![],
         CompilationErrorKind::AssignTypeError { kind: _, found: _ } => vec![],
         CompilationErrorKind::FunctionMayNotReturn { function_kind: _, name: _ } => vec![],
-CompilationErrorKind::MainFunctionReturnKind => vec![],
+        CompilationErrorKind::MainFunctionReturnKind => vec![],
+        CompilationErrorKind::VisibilityError { symbol, visibilty: _, requested: _, location } => vec![
+                            format!("`{symbol}` is defined in `{location}`")
+        ],
     }
 }
 
 pub fn hintify_error(err: &CompilationError) -> String {
     match &err.kind {
         CompilationErrorKind::SymbolNotFound {
-                                symbol_kind,
-                                symbol_name,
-                    } => format!(
-                        "Consider to creating a `{symbol_name}` {symbol_kind} declaration"
-                    ),
+                                    symbol_kind,
+                                    symbol_name,
+                        } => format!(
+                            "Consider to creating a `{symbol_name}` {symbol_kind} declaration"
+                        ),
         CompilationErrorKind::IllegalCharacter(c) => {
-                        format!("Consider removing '{c}' from source code")
-                    }
+                            format!("Consider removing '{c}' from source code")
+                        }
         CompilationErrorKind::InvalidNativeDeclaration => format_invalid_native_declaration(),
         CompilationErrorKind::UnsupportedFeature { feature } => format_unsupported_feature(feature),
         CompilationErrorKind::InvalidBuiltinDeclaration => todo!(),
@@ -292,103 +295,105 @@ pub fn hintify_error(err: &CompilationError) -> String {
         CompilationErrorKind::ArgumentLimitOverflow => todo!(),
         CompilationErrorKind::UnexpectedToken { token: _ } => "Consider removing this token".to_string(),
         CompilationErrorKind::ExpectedToken {
-                        expect,
-                        found,
-                        after,
-                    } => hint_expected_token(expect, found, after),
+                            expect,
+                            found,
+                            after,
+                        } => hint_expected_token(expect, found, after),
         CompilationErrorKind::ExpectedConstruction { expect, found } => {
-                        format_expected_construction(expect, found)
-                    }
+                            format_expected_construction(expect, found)
+                        }
         CompilationErrorKind::MissingMainFunction => todo!(),
         CompilationErrorKind::DuplicatedVariable { name, previous } => {
-                        format_duplicated_variable(name, previous)
-                    }
+                            format_duplicated_variable(name, previous)
+                        }
         CompilationErrorKind::UsingVoidToAssignVariableOrParam => todo!(),
         CompilationErrorKind::DuplicatedTypeDefinition { r#type: _ } => todo!(),
         CompilationErrorKind::DuplicatedField { field } => format_duplicated_field(field),
         CompilationErrorKind::MissingConstruction { construction: _ } => todo!(),
         CompilationErrorKind::InvalidStatementScope { statement: _ } => todo!(),
         CompilationErrorKind::DepthError { msg: _ } => {
-                        "Move the declaration to other scope level.".to_string()
-                    }
+                            "Move the declaration to other scope level.".to_string()
+                        }
         CompilationErrorKind::InvalidStatementUsage { error: _ } => {
-                        "Consider removing the statement".to_string()
-                    }
+                            "Consider removing the statement".to_string()
+                        }
         CompilationErrorKind::ExpectType {
-                        expect,
-                        found,
-                        compiler_msg,
-                    } => format_expect_type(expect, found, compiler_msg),
+                            expect,
+                            found,
+                            compiler_msg,
+                        } => format_expect_type(expect, found, compiler_msg),
         CompilationErrorKind::ExpectReturnType { expect: _, found: _ } => {
-                        "Consider change the return type of the function or returned value".to_string()
-                    }
+                            "Consider change the return type of the function or returned value".to_string()
+                        }
         CompilationErrorKind::UnexpectedReturnValue { found: _ } => todo!(),
         CompilationErrorKind::TypeAssertion { msg: _ } => todo!(),
         CompilationErrorKind::UsageOfNotRequiredStatement { statement: _, place: _ } => todo!(),
         CompilationErrorKind::DuplicatedNativeFunction { name: _ } => todo!(),
         CompilationErrorKind::NotFoundType { name: _ } => todo!(),
         CompilationErrorKind::NotFoundField { r#type, field } => {
-                        format!("Consider removing `{type}.{field}` from your code.")
-                    }
+                            format!("Consider removing `{type}.{field}` from your code.")
+                        }
         CompilationErrorKind::ModuleNotFound { path } => format!(
-                        "Consider to create module '{}' before use it",
-                        path.join(".")
-                    ),
+                            "Consider to create module '{}' before use it",
+                            path.join(".")
+                        ),
         CompilationErrorKind::ModuleAccessDenied { path: _, full_path: _ } => todo!(),
         CompilationErrorKind::ModuleReadError {
-                        path: _,
-                        error: _,
-                        full_path: _,
-                    } => todo!(),
+                            path: _,
+                            error: _,
+                            full_path: _,
+                        } => todo!(),
         CompilationErrorKind::InvalidLiteral { line: _ } => todo!(),
         CompilationErrorKind::InvalidPostfixOperatorUsage { msg: _ } => todo!(),
         CompilationErrorKind::InvalidExpression { msg: _ } => {
-                        "Consider removing this expression".to_string()
-                    }
+                            "Consider removing this expression".to_string()
+                        }
         CompilationErrorKind::InexistentType { r#type } => {
-                        format!("Consider declare the '{type}' type before use it")
-                    }
+                            format!("Consider declare the '{type}' type before use it")
+                        }
         CompilationErrorKind::UsageOfNotInferredVariable { name: _ } => todo!(),
         CompilationErrorKind::NotFoundArchetypeMask(_not_found_archetype_mask) => todo!(),
         CompilationErrorKind::UsageOfUndeclaredVariable { name } => {
-                        format_usage_of_undeclared_variable(name)
-                    }
+                            format_usage_of_undeclared_variable(name)
+                        }
         CompilationErrorKind::InvalidAttributeExpression { msg: _ } => {
-                        "Consider change or remove the attribute declaration".to_string()
-                    }
+                            "Consider change or remove the attribute declaration".to_string()
+                        }
         CompilationErrorKind::InvalidOperatorOverload(_) => {
-                        "Consider changing function structure to match with desired overload.".to_string()
-                    }
+                            "Consider changing function structure to match with desired overload.".to_string()
+                        }
         CompilationErrorKind::MismatchAttrbuteArgument { arg: _, accepted } => {
-                        let formatted = accepted
-                            .iter()
-                            .map(|s| format!("\"{s}\""))
-                            .collect::<Vec<_>>()
-                            .join(", ");
+                            let formatted = accepted
+                                .iter()
+                                .map(|s| format!("\"{s}\""))
+                                .collect::<Vec<_>>()
+                                .join(", ");
 
-                        format!("The valid arguments here are: {formatted}")
-                    }
+                            format!("The valid arguments here are: {formatted}")
+                        }
         CompilationErrorKind::InvalidConstantEvaluation(_) => todo!(),
         CompilationErrorKind::OperatorOverloadNotFound {
-                        this: _,
-                        other: _,
-                        operator: _,
-                    } => "Consider implement correspondent operator overload".to_string(),
+                            this: _,
+                            other: _,
+                            operator: _,
+                        } => "Consider implement correspondent operator overload".to_string(),
         CompilationErrorKind::DuplicatedDefinition {
-                        definition,
-                        target,
-                        kind: _,
-                    } => format!(
-                        "Consider removing one of the definitions of `{target}.{definition}`"
-                    ),
+                            definition,
+                            target,
+                            kind: _,
+                        } => format!(
+                            "Consider removing one of the definitions of `{target}.{definition}`"
+                        ),
         CompilationErrorKind::MismatchArgumentCount {
-                        expected: _,
-                        found: _,
-                        function_name: _,
-                    } => "Consider adding the missing argument".to_string(),
+                            expected: _,
+                            found: _,
+                            function_name: _,
+                        } => "Consider adding the missing argument".to_string(),
         CompilationErrorKind::AssignTypeError { kind: _, found: _ } => "Consider change the type of variable or assign with other value that match expected type".to_string(),
         CompilationErrorKind::FunctionMayNotReturn { function_kind: _, name: _ } => "Consider adding return statements to all control flow paths".to_string(),
-CompilationErrorKind::MainFunctionReturnKind => "Consider changing the return type of main function to `void`.".to_string(),
+        CompilationErrorKind::MainFunctionReturnKind => "Consider changing the return type of main function to `void`.".to_string(),
+        CompilationErrorKind::VisibilityError { visibilty: visibility , symbol, requested, location: _} => format!("Change the visibility of `{symbol}` from `{visibility}` to `{requested}`\n{}",
+            notefy_error(err).join(".\n")),
     }
 }
 
@@ -498,6 +503,12 @@ pub fn stringify_error(err: &CompilationError) -> String {
         CompilationErrorKind::MainFunctionReturnKind => {
             "Main function must be not return value".to_string()
         }
+        CompilationErrorKind::VisibilityError {
+            symbol,
+            visibilty: _,
+            requested: _,
+            location: _,
+        } => format!("The visibility of `{symbol}` visibility is not enough to be accessed here."),
     }
 }
 

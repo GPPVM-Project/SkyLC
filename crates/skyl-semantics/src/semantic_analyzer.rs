@@ -17,8 +17,9 @@ use skyl_data::{
     AnnotatedAST, AnnotatedExpression, AnnotatedStatement, Archetype, Ast, BuiltinAttribute,
     CoersionKind, CompilerConfig, CompilerContext, ContextScope, ContextStack, Decorator,
     Expression, FieldDeclaration, FieldDescriptor, FunctionPrototype, Literal, MethodDescriptor,
-    MethodParameter, SemanticCode, SemanticValue, Span, Statement, StaticValue, SymbolKind,
-    SymbolTable, Token, TokenKind, TypeDecl, TypeDescriptor, ValueWrapper, read_file_without_bom,
+    MethodDescriptorParams, MethodParameter, SemanticCode, SemanticValue, SourceFileID, Span,
+    Statement, StaticValue, SymbolKind, SymbolTable, Token, TokenKind, TypeDecl, TypeDescriptor,
+    ValueWrapper, Visibility, read_file_without_bom,
 };
 use skyl_driver::{
     errors::{CompilationError, CompilationErrorKind, CompilerErrorReporter},
@@ -48,6 +49,7 @@ pub struct SemanticAnalyzer {
     pub(crate) void_instance: Rc<RefCell<TypeDescriptor>>,
     pub(crate) modules: Vec<String>,
     pub(crate) ctx: Option<Rc<RefCell<CompilerContext>>>,
+    pub(crate) current_file: SourceFileID,
 }
 
 impl SemanticAnalyzer {
@@ -65,13 +67,18 @@ impl SemanticAnalyzer {
             current_static_id: 1u32,
             current_symbol_kind: SymbolKind::None,
             reporter: Rc::new(RefCell::new(CompilerErrorReporter::empty())),
-            void_instance: Rc::new(RefCell::new(TypeDescriptor::empty())),
+            void_instance: Rc::new(RefCell::new(TypeDescriptor::empty(
+                SourceFileID(0),
+                Visibility::Public,
+            ))),
             ..Default::default()
         };
         let mut archetypes = HashSet::new();
         let fields = HashMap::new();
 
         analyzer.void_instance = Rc::new(RefCell::new(TypeDescriptor::new(
+            SourceFileID(0),
+            Visibility::Public,
             "void".to_string(),
             archetypes,
             fields,
@@ -100,32 +107,32 @@ impl SemanticAnalyzer {
     /// `bool`, `number`, `float`, `int`, `iterator`, `str`,
     /// `tuple`, `list`.
     pub fn initialize_predefined_types(&mut self) {
-        self.create_and_define_type("object", vec![]);
-        self.create_and_define_type("bool", vec![]);
-        self.create_and_define_type("number", vec![]);
+        self.create_and_define_type(SourceFileID(0), "object", vec![]);
+        self.create_and_define_type(SourceFileID(0), "bool", vec![]);
+        self.create_and_define_type(SourceFileID(0), "number", vec![]);
 
         let number_descriptor = self
             .get_static_kind_by_name("number", &Expression::Void)
             .unwrap();
         self.add_field_to_defined_type("mod", number_descriptor.clone(), number_descriptor);
 
-        self.create_and_define_type("float", vec!["number"]);
-        self.create_and_define_type("int", vec!["number"]);
+        self.create_and_define_type(SourceFileID(0), "float", vec!["number"]);
+        self.create_and_define_type(SourceFileID(0), "int", vec!["number"]);
 
         let int_descriptor = self
             .get_static_kind_by_name("int", &Expression::Void)
             .unwrap();
 
-        self.create_and_define_type("iterator", vec![]);
+        self.create_and_define_type(SourceFileID(0), "iterator", vec![]);
         let iterator_descriptor = self
             .get_static_kind_by_name("iterator", &Expression::Void)
             .unwrap();
 
         self.add_field_to_defined_type("length", iterator_descriptor, int_descriptor);
 
-        self.create_and_define_type("str", vec!["iterator"]);
-        self.create_and_define_type("tuple", vec!["iterator"]);
-        self.create_and_define_type("list", vec!["iterator"]);
+        self.create_and_define_type(SourceFileID(0), "str", vec!["iterator"]);
+        self.create_and_define_type(SourceFileID(0), "tuple", vec!["iterator"]);
+        self.create_and_define_type(SourceFileID(0), "list", vec!["iterator"]);
 
         let kind = self.get_void_instance();
 
@@ -152,6 +159,8 @@ impl SemanticAnalyzer {
     /// * `kind` - The descriptor for function return kind.
     pub fn create_and_define_function(
         &mut self,
+        file: SourceFileID,
+        visibility: Visibility,
         name: &str,
         params: Vec<FieldDeclaration>,
         kind: Rc<RefCell<TypeDescriptor>>,
@@ -160,7 +169,7 @@ impl SemanticAnalyzer {
 
         self.symbol_table.native_functions.insert(
             name.to_string(),
-            FunctionPrototype::new(name.to_string(), params, arity, kind),
+            FunctionPrototype::new(file, visibility, name.to_string(), params, arity, kind),
         );
     }
 
@@ -190,6 +199,8 @@ impl SemanticAnalyzer {
 
     pub fn add_method_to_defined_type(
         &mut self,
+        file: SourceFileID,
+        visibility: Visibility,
         name: String,
         target: &str,
         params: Vec<MethodParameter>,
@@ -199,14 +210,16 @@ impl SemanticAnalyzer {
         is_native: bool,
     ) {
         let method = {
-            MethodDescriptor::new(
-                name.clone(),
+            MethodDescriptor::new(MethodDescriptorParams {
+                file,
+                visibility,
+                name: name.clone(),
                 params,
                 arity,
                 owner_type_id,
                 return_kind_id,
                 is_native,
-            )
+            })
         };
 
         let methods = &mut self
@@ -228,8 +241,18 @@ impl SemanticAnalyzer {
     /// * `name` - A string slice with name of kind to be defined.
     /// * `archetypes` - A `Vec` with names of archetypes to
     /// compound new kind mask.
-    pub fn create_and_define_type(&mut self, name: &str, archetypes: Vec<&str>) {
-        let mut type_decl = TypeDecl::new(name.to_string(), self.get_static_id());
+    pub fn create_and_define_type(
+        &mut self,
+        file: SourceFileID,
+        name: &str,
+        archetypes: Vec<&str>,
+    ) {
+        let mut type_decl = TypeDecl::new(
+            file,
+            Visibility::Public,
+            name.to_string(),
+            self.get_static_id(),
+        );
 
         if "object".cmp(&type_decl.name) != Ordering::Equal {
             type_decl.add_archetype(Archetype::new("object".to_string()));
@@ -773,7 +796,22 @@ impl SemanticAnalyzer {
     }
 
     pub(super) fn get_static_kind_by_id(&self, id: u32) -> Rc<RefCell<TypeDescriptor>> {
-        self.symbol_table.get_type_by_id(id).unwrap()
+        match self.symbol_table.get_type_by_id(id) {
+            Some(desc) => desc,
+            None => {
+                println!("Current data: {}", self.current_symbol);
+                println!(
+                    "Current symbols: {}",
+                    self.symbol_table
+                        .names
+                        .values()
+                        .map(|t| format!("{}:{}", t.kind.borrow().id, t.kind.borrow().name))
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                );
+                gpp_error!("Type with id `{}` not exists", id)
+            }
+        }
     }
 
     /// Checks whether two types are the same kind (i.e., have the same type ID).

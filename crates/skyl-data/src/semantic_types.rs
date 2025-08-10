@@ -1,7 +1,7 @@
 use std::{cell::RefCell, collections::HashMap, default::Default, rc::Rc};
 
 use crate::{
-    AnnotatedAST,
+    AnnotatedAST, SourceFileID, Visibility,
     descriptors::{TypeDecl, TypeDescriptor},
     statements::FieldDeclaration,
 };
@@ -196,6 +196,8 @@ pub enum SymbolKind {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct FunctionPrototype {
+    pub file: SourceFileID,
+    pub visibility: Visibility,
     pub name: String,
     pub params: Vec<FieldDeclaration>,
     pub arity: usize,
@@ -204,12 +206,16 @@ pub struct FunctionPrototype {
 
 impl FunctionPrototype {
     pub fn new(
+        file: SourceFileID,
+        visibility: Visibility,
         name: String,
         params: Vec<FieldDeclaration>,
         arity: usize,
         return_kind: Rc<RefCell<TypeDescriptor>>,
     ) -> Self {
         Self {
+            file,
+            visibility,
             name,
             params,
             arity,

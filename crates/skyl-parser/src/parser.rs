@@ -2,7 +2,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use skyl_data::{
     Ast, CollectionKind, Expression, FieldDeclaration, KeywordKind, Literal, OperatorKind,
-    PunctuationKind, Statement, Token, TokenKind, TokenStream,
+    PunctuationKind, Statement, Token, TokenKind, TokenStream, Visibility,
 };
 use skyl_driver::errors::{
     CompilationError, CompilationErrorKind, CompilerErrorReporter, ParseError,
@@ -56,11 +56,13 @@ impl Parser {
         match self.advance().kind {
             TokenKind::Keyword(keyword) => match keyword {
                 KeywordKind::Return => self.return_statement(),
-                KeywordKind::Type => self.type_declaration(),
-                KeywordKind::Def => self.function_declaration(),
+                KeywordKind::Type => self.type_declaration(Visibility::Module),
+                KeywordKind::Def => self.function_declaration(Visibility::Module),
                 KeywordKind::Native => self.parse_native_decl(),
                 KeywordKind::Builtin => self.parse_builtin_decl(),
-                KeywordKind::Internal => self.parse_internal_function(),
+                KeywordKind::Internal => self.parse_internal_function(Visibility::Module),
+                KeywordKind::Pub => self.parse_pub_access(),
+                KeywordKind::Mod => self.parse_mod_access(),
                 _ => {
                     self.backtrack();
                     self.statement()
@@ -75,7 +77,7 @@ impl Parser {
         }
     }
 
-    fn parse_internal_function(&mut self) -> Result<Statement, ParseError> {
+    fn parse_internal_function(&mut self, access: Visibility) -> Result<Statement, ParseError> {
         let start_token = self.previous();
         self.eat(
             TokenKind::Keyword(KeywordKind::Def),
@@ -125,7 +127,11 @@ impl Parser {
 
         let param_type = self.type_composition()?;
 
-        params.push(FieldDeclaration::new(param_name, param_type));
+        params.push(FieldDeclaration::new(
+            Visibility::Public,
+            param_name,
+            param_type,
+        ));
 
         if !self.check(&[TokenKind::Punctuation(PunctuationKind::RightParen)]) {
             while self.try_eat(&[TokenKind::Punctuation(PunctuationKind::Comma)]) {
@@ -148,7 +154,11 @@ impl Parser {
 
                 let param_type = self.type_composition()?;
 
-                params.push(FieldDeclaration::new(param_name, param_type));
+                params.push(FieldDeclaration::new(
+                    Visibility::Public,
+                    param_name,
+                    param_type,
+                ));
             }
         }
 
@@ -183,6 +193,7 @@ impl Parser {
         let end_span = body.span();
 
         Ok(Statement::InternalDefinition(
+            access,
             function_name,
             params,
             Box::new(body),
@@ -322,7 +333,11 @@ impl Parser {
             )?;
 
             let mut field_type: Expression = self.type_composition()?;
-            fields.push(FieldDeclaration::new(field_name, field_type));
+            fields.push(FieldDeclaration::new(
+                Visibility::Public,
+                field_name,
+                field_type,
+            ));
 
             while self.try_eat(&[TokenKind::Punctuation(PunctuationKind::Comma)]) {
                 if self.check(&[TokenKind::Punctuation(PunctuationKind::RightBrace)]) {
@@ -345,7 +360,11 @@ impl Parser {
                 )?;
 
                 field_type = self.type_composition()?;
-                fields.push(FieldDeclaration::new(field_name, field_type));
+                fields.push(FieldDeclaration::new(
+                    Visibility::Public,
+                    field_name,
+                    field_type,
+                ));
             }
         }
 
@@ -358,6 +377,7 @@ impl Parser {
             .span;
 
         Ok(Statement::Type(
+            Visibility::Public,
             type_name,
             archetypes,
             fields,
@@ -396,7 +416,11 @@ impl Parser {
 
             let param_type = self.type_composition()?;
 
-            params.push(FieldDeclaration::new(param_name, param_type));
+            params.push(FieldDeclaration::new(
+                Visibility::Public,
+                param_name,
+                param_type,
+            ));
 
             while self.try_eat(&[TokenKind::Punctuation(PunctuationKind::Comma)]) {
                 let param_name = self.eat(
@@ -416,7 +440,11 @@ impl Parser {
 
                 let param_type = self.type_composition()?;
 
-                params.push(FieldDeclaration::new(param_name, param_type));
+                params.push(FieldDeclaration::new(
+                    Visibility::Public,
+                    param_name,
+                    param_type,
+                ));
             }
         }
 
@@ -529,7 +557,7 @@ impl Parser {
         Ok(result)
     }
 
-    fn function_declaration(&mut self) -> Result<Statement, ParseError> {
+    fn function_declaration(&mut self, access: Visibility) -> Result<Statement, ParseError> {
         let start_token = self.previous();
         let function_name = self.expect_token(TokenKind::Identifier, "function name", "'def'")?;
 
@@ -559,7 +587,11 @@ impl Parser {
 
             let param_type = self.type_composition()?;
 
-            params.push(FieldDeclaration::new(param_name, param_type));
+            params.push(FieldDeclaration::new(
+                Visibility::Public,
+                param_name,
+                param_type,
+            ));
 
             while self.try_eat(&[TokenKind::Punctuation(PunctuationKind::Comma)]) {
                 let param_name = self.eat(
@@ -579,7 +611,11 @@ impl Parser {
 
                 let param_type = self.type_composition()?;
 
-                params.push(FieldDeclaration::new(param_name, param_type));
+                params.push(FieldDeclaration::new(
+                    Visibility::Public,
+                    param_name,
+                    param_type,
+                ));
             }
         }
 
@@ -610,6 +646,7 @@ impl Parser {
         let end_span = body.span();
 
         Ok(Statement::Function(
+            access,
             function_name,
             params,
             Box::new(body),
@@ -652,7 +689,7 @@ impl Parser {
         ))
     }
 
-    fn type_declaration(&mut self) -> Result<Statement, ParseError> {
+    fn type_declaration(&mut self, access: Visibility) -> Result<Statement, ParseError> {
         let start_token = self.previous();
         let type_name = self.expect_token(TokenKind::Identifier, "type name", "'type' keyword")?;
 
@@ -699,7 +736,11 @@ impl Parser {
             )?;
 
             let mut field_type: Expression = self.type_composition()?;
-            fields.push(FieldDeclaration::new(field_name, field_type));
+            fields.push(FieldDeclaration::new(
+                Visibility::Public,
+                field_name,
+                field_type,
+            ));
 
             while self.try_eat(&[TokenKind::Punctuation(PunctuationKind::Comma)]) {
                 if self.check(&[TokenKind::Punctuation(PunctuationKind::RightBrace)]) {
@@ -722,7 +763,11 @@ impl Parser {
                 )?;
 
                 field_type = self.type_composition()?;
-                fields.push(FieldDeclaration::new(field_name, field_type));
+                fields.push(FieldDeclaration::new(
+                    Visibility::Public,
+                    field_name,
+                    field_type,
+                ));
             }
         }
 
@@ -735,6 +780,7 @@ impl Parser {
             .span;
 
         Ok(Statement::Type(
+            access,
             type_name,
             archetypes,
             fields,
@@ -1619,5 +1665,41 @@ impl Parser {
             start_span.merge(end_span),
             start_token.line,
         ))
+    }
+
+    fn parse_pub_access(&mut self) -> Result<Statement, ParseError> {
+        if self.try_eat(&[TokenKind::Keyword(KeywordKind::Internal)]) {
+            self.parse_internal_function(Visibility::Public)
+        } else if self.try_eat(&[TokenKind::Keyword(KeywordKind::Type)]) {
+            self.type_declaration(Visibility::Public)
+        } else if self.try_eat(&[TokenKind::Keyword(KeywordKind::Def)]) {
+            self.function_declaration(Visibility::Public)
+        } else {
+            Err(ParseError::new(
+                CompilationErrorKind::InvalidKeyword {
+                    keyword: self.peek().lexeme,
+                },
+                self.peek().line,
+                self.peek().span,
+            ))
+        }
+    }
+
+    fn parse_mod_access(&mut self) -> Result<Statement, ParseError> {
+        if self.try_eat(&[TokenKind::Keyword(KeywordKind::Internal)]) {
+            self.parse_internal_function(Visibility::Module)
+        } else if self.try_eat(&[TokenKind::Keyword(KeywordKind::Type)]) {
+            self.type_declaration(Visibility::Module)
+        } else if self.try_eat(&[TokenKind::Keyword(KeywordKind::Def)]) {
+            self.function_declaration(Visibility::Module)
+        } else {
+            Err(ParseError::new(
+                CompilationErrorKind::InvalidKeyword {
+                    keyword: self.peek().lexeme,
+                },
+                self.peek().line,
+                self.peek().span,
+            ))
+        }
     }
 }

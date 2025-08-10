@@ -9,47 +9,47 @@ native def int_to_float(value: int) -> float;
 native def int_sqrt(value: int) -> float;
 native def int_to_string(value: int) -> str;
 
-internal def abs(self: int) -> int {
+pub internal def abs(self: int) -> int {
     return int_abs(self);
 }
 
-internal def to_string(self: int) -> str{
+pub internal def to_string(self: int) -> str{
     return int_to_string(self);
 }
 
-internal def sqrt(self: int) -> float{
+pub internal def sqrt(self: int) -> float{
     return int_sqrt(self);
 }
 
-internal def is_even(self: int) -> bool {
+pub internal def is_even(self: int) -> bool {
     return int_is_even(self);
 }
 
-internal def is_odd(self: int) -> bool {
+pub internal def is_odd(self: int) -> bool {
     return int_is_odd(self);
 }
 
-internal def sign(self: int) -> int {
+pub internal def sign(self: int) -> int {
     return int_sign(self);
 }
 
-internal def clamp(self: int, min: int, max: int) -> int {
+pub internal def clamp(self: int, min: int, max: int) -> int {
     return int_clamp(self, min, max);
 }
 
-internal def max(self: int, other: int) -> int {
+pub internal def max(self: int, other: int) -> int {
     return int_max(self, other);
 }
 
-internal def min(self: int, other: int) -> int {
+pub internal def min(self: int, other: int) -> int {
     return int_min(self, other);
 }
 
-internal def to_float(self: int) -> float {
+pub internal def to_float(self: int) -> float {
     return int_to_float(self);
 }
 
-internal def pow(self: int, exp: int) -> int {
+pub internal def pow(self: int, exp: int) -> int {
     let result = self;
     
     while exp > 1 {
@@ -61,11 +61,11 @@ internal def pow(self: int, exp: int) -> int {
 }
 
 #[operator("+")]
-internal def add_str(self: int, other: str) -> str {
+pub internal def add_str(self: int, other: str) -> str {
     return self.to_string() + other;
 }
 
 #[operator("+")]
-internal def add_str(self: str, other: int) -> str {
+pub internal def add_str(self: str, other: int) -> str {
     return self + other.to_string();
 }

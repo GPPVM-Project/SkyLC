@@ -1,45 +1,43 @@
-// Faz uma requisição HTTP básica (GET ou POST)
-// Exemplo: http_request("GET", "https://example.com", "")
 native def native_http_request(method: str, url: str, body: str) -> str;
 
-type HttpResponse {
+pub type HttpResponse {
     status_code: int,
     body: str,
 }
 
-type HttpRequest {
+pub type HttpRequest {
     method: str,
     url: str,
     body: str,
 }
 
-type HttpRequestBuilder {
+pub type HttpRequestBuilder {
     method_: str,
     url_: str,
     body_: str,
 }
 
-def http_request_builder() -> HttpRequestBuilder {
+pub def http_request_builder() -> HttpRequestBuilder {
     return HttpRequestBuilder("", "", "");
 }
 
-internal def method(self: HttpRequestBuilder, method: str) -> HttpRequestBuilder {
+pub internal def method(self: HttpRequestBuilder, method: str) -> HttpRequestBuilder {
     return HttpRequestBuilder(method, self.url_, self.body_);
 }
 
-internal def url(self: HttpRequestBuilder, url: str) -> HttpRequestBuilder {
+pub internal def url(self: HttpRequestBuilder, url: str) -> HttpRequestBuilder {
     return HttpRequestBuilder(self.method_, url, self.body_);
 }
 
-internal def body(self: HttpRequestBuilder, body: str) -> HttpRequestBuilder {
+pub internal def body(self: HttpRequestBuilder, body: str) -> HttpRequestBuilder {
     return HttpRequestBuilder(self.method_, self.url_, body);
 }
 
-internal def build(self: HttpRequestBuilder) -> HttpRequest {
+pub internal def build(self: HttpRequestBuilder) -> HttpRequest {
     return HttpRequest(self.method_, self.url_, self.body_);
 }
 
-def http_request(request: HttpRequest) -> HttpResponse {
+pub def http_request(request: HttpRequest) -> HttpResponse {
     let { method, url, body } = request;
 
     let response = native_http_request(method, url, body);

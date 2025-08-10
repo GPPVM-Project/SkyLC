@@ -374,38 +374,6 @@ impl SemanticAnalyzer {
         }
     }
 
-    /// Resolves the type of an iterator expression (e.g., for lists or function calls).
-    ///
-    /// This function determines the type of an iterator expression. It handles different types of
-    /// iterator expressions, such as lists and function calls, and ensures that the correct type
-    /// is inferred based on the expression's context.
-    ///
-    /// # Parameters
-    /// - `iterator`: The iterator expression whose type is to be resolved.
-    ///
-    /// # Returns
-    /// - A `TypeDescriptor` representing the type of the iterator expression.
-    ///
-    /// # Errors
-    /// - Raises an error if the iterator expression is not a list or a function call.
-    pub(crate) fn resolve_iterator_kind(
-        &mut self,
-        iterator: &Expression,
-    ) -> TyResult<Rc<RefCell<TypeDescriptor>>> {
-        let _expr_kind = self.resolve_expr_type(iterator)?;
-
-        match iterator {
-            Expression::List(elements, _) => self.resolve_list_type(elements),
-            Expression::Call(callee, paren, args, _) => {
-                self.analyze_call_expression(callee, paren, args)?;
-                self.resolve_function_return_type(callee, paren, args)
-            }
-            _ => {
-                gpp_error!("Expect list, but got {:?}.", iterator);
-            }
-        }
-    }
-
     /// Resolves a type composition from a mask of tokens.
     ///
     /// This function builds a set of archetypes from the given tokens and attempts to find a matching

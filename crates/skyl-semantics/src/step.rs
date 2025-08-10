@@ -6,8 +6,8 @@ use std::{
 };
 
 use skyl_data::{
-    Ast, CompilerConfig, CompilerContext, ContextStack, Decorator, SymbolKind,
-    SymbolTable, TypeDescriptor,
+    Ast, CompilerConfig, CompilerContext, ContextStack, Decorator, SourceFileID, SymbolKind,
+    SymbolTable, TypeDescriptor, Visibility,
 };
 use skyl_driver::{
     PipelineStep,
@@ -19,6 +19,7 @@ use crate::SemanticAnalyzer;
 impl Default for SemanticAnalyzer {
     fn default() -> Self {
         let mut analyzer = Self {
+            current_file: SourceFileID(0),
             modules: Vec::new(),
             current_descriptor_id: None,
             current_return_kind_id: None,
@@ -31,7 +32,10 @@ impl Default for SemanticAnalyzer {
             current_static_id: 1u32,
             current_symbol_kind: SymbolKind::None,
             reporter: Rc::new(RefCell::new(CompilerErrorReporter::empty())),
-            void_instance: Rc::new(RefCell::new(TypeDescriptor::empty())),
+            void_instance: Rc::new(RefCell::new(TypeDescriptor::empty(
+                SourceFileID(0),
+                Visibility::Public,
+            ))),
             current_decorator: Decorator::from(Vec::new()),
             ctx: None,
         };
@@ -40,6 +44,8 @@ impl Default for SemanticAnalyzer {
         let fields = HashMap::new();
 
         analyzer.void_instance = Rc::new(RefCell::new(TypeDescriptor::new(
+            SourceFileID(0),
+            Visibility::Public,
             "void".to_string(),
             archetypes,
             fields,

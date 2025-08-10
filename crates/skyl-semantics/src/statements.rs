@@ -6,7 +6,7 @@ use skyl_data::{
     AnnotatedExpression, AnnotatedStatement, Archetype, Ast, BuiltinAttributeUsage, Decorator,
     Expression, FieldDeclaration, FieldDescriptor, FunctionPrototype, MethodParameter,
     SemanticValue, Span, Statement, SymbolKind, Token, TypeDecl, TypeDescriptor, ValueWrapper,
-    read_file_without_bom,
+    Visibility, read_file_without_bom,
 };
 use skyl_driver::{
     errors::{CompilationError, CompilationErrorKind},
@@ -51,12 +51,12 @@ impl SemanticAnalyzer {
             Statement::Decorator(hash_token, attribs, _, _) => {
                 Ok(vec![self.analyze_decorator(hash_token, attribs)?])
             }
-            Statement::Type(name, archetypes, fields, _, _) => {
-                let result = self.analyze_type(name, archetypes, fields);
+            Statement::Type(access, name, archetypes, fields, _, _) => {
+                let result = self.analyze_type(access, name, archetypes, fields);
                 Ok(vec![result?])
             }
-            Statement::Function(name, params, body, return_kind, _, _) => {
-                let result = self.analyze_function(name, params, body, return_kind)?;
+            Statement::Function(access, name, params, body, return_kind, _, _) => {
+                let result = self.analyze_function(access, name, params, body, return_kind)?;
                 self.analyze_control_flow(&result);
                 Ok(vec![result])
             }
@@ -85,8 +85,9 @@ impl SemanticAnalyzer {
             Statement::BuiltinAttribute(name, kinds, _, _) => {
                 Ok(vec![self.analyze_builtin_attribute(name, kinds)?])
             }
-            Statement::InternalDefinition(name, params, body, return_kind, _, _) => {
-                let result = self.analyze_internal_definition(name, params, body, return_kind)?;
+            Statement::InternalDefinition(access, name, params, body, return_kind, _, _) => {
+                let result =
+                    self.analyze_internal_definition(access, name, params, body, return_kind)?;
                 self.analyze_control_flow(&result);
                 Ok(vec![result])
             }
@@ -264,7 +265,11 @@ impl SemanticAnalyzer {
             println!("Importing: {}", full_path.display());
         }
 
+        let prev_file = self.current_file;
+        self.current_file = source.id;
+
         if let Some(ctx) = &mut self.ctx {
+            ctx.borrow_mut().register_file(source.clone());
             ctx.borrow_mut()
                 .push_module(full_path.to_str().unwrap().into());
         }
@@ -315,6 +320,8 @@ impl SemanticAnalyzer {
             ctx.borrow_mut().pop_module();
         }
 
+        self.current_file = prev_file;
+
         self.statements = old_stmts;
         self.current_stmt = old_index;
 
@@ -323,6 +330,7 @@ impl SemanticAnalyzer {
 
     fn analyze_internal_definition(
         &mut self,
+        access: &Visibility,
         name: &Token,
         params: &Vec<FieldDeclaration>,
         body: &Statement,
@@ -422,6 +430,8 @@ impl SemanticAnalyzer {
         let return_kind_id = return_kind_type.borrow().id;
 
         self.add_method_to_defined_type(
+            self.current_file,
+            *access,
             name.lexeme.clone(),
             &target_name,
             method_params,
@@ -432,6 +442,8 @@ impl SemanticAnalyzer {
         );
 
         let function_definition = FunctionPrototype::new(
+            self.current_file,
+            *access,
             name.lexeme.clone(),
             params.clone(),
             params.len(),
@@ -662,92 +674,6 @@ impl SemanticAnalyzer {
         ))
     }
 
-    /// Analyzes a for-each loop and ensures semantic correctness.
-    ///
-    /// This function verifies that the loop condition is iterable and processes
-    /// the loop body within a new scope to ensure proper variable handling.
-    ///
-    /// # Arguments
-    ///
-    /// * `variable` - The loop variable.
-    /// * `condition` - The iterable expression.
-    /// * `body` - The statement representing the loop body.
-    ///
-    /// # Returns
-    ///
-    /// An `AnnotatedStatement::ForEach` containing the analyzed loop structure.
-    pub(super) fn _analyze_iterator(
-        &mut self,
-        variable: &Token,
-        condition: &Expression,
-        body: &Statement,
-    ) -> TyResult<AnnotatedStatement> {
-        self.begin_scope();
-
-        let annotated_iterator: AnnotatedExpression;
-        let iterator_kind: Rc<RefCell<TypeDescriptor>>;
-
-        match condition {
-            Expression::Variable(variable, _) => {
-                self.assert_archetype_kind(
-                    condition,
-                    self.get_static_kind_by_name("iterator", condition)?,
-                    "Expect iterator in 'for' loop.",
-                )?;
-
-                // iterator_kind =
-                self.resolve_identifier_type(variable)?;
-                annotated_iterator = self.analyze_expr(condition)?;
-            }
-
-            Expression::Call(callee, paren, args, _) => {
-                iterator_kind = self.resolve_function_return_type(callee, paren, args)?;
-                self.assert_kind_equals(
-                    iterator_kind.clone(),
-                    self.get_static_kind_by_name("iterator", callee)?,
-                    "Expect iterator in for each declaration.".to_string(),
-                )?;
-
-                annotated_iterator = self.analyze_expr(condition)?;
-            }
-
-            _ => {
-                // iterator_kind =
-                self.resolve_iterator_kind(condition)?;
-                annotated_iterator = self.analyze_expr(condition)?;
-            }
-        }
-
-        let mut annotated_body = Vec::new();
-
-        match body {
-            Statement::Scope(stmts, span, line) => {
-                for stmt in stmts {
-                    let stmt_vec = self.analyze_stmt(stmt, span, line)?;
-
-                    for s in stmt_vec {
-                        annotated_body.push(Box::new(s));
-                    }
-                }
-            }
-            _ => gpp_error!("Statement {:?} is not allowed here.", body),
-        }
-
-        self.end_scope();
-
-        Ok(AnnotatedStatement::ForEach(
-            variable.clone(),
-            annotated_iterator,
-            Box::new(AnnotatedStatement::Scope(
-                annotated_body,
-                body.span(),
-                body.line(),
-            )),
-            variable.span.merge(body.span()),
-            variable.line,
-        ))
-    }
-
     /// Analyzes a variable declaration and ensures it adheres to semantic rules.
     ///
     /// This function checks if the variable name is already declared within the
@@ -863,6 +789,8 @@ impl SemanticAnalyzer {
         }
 
         let function_definition = FunctionPrototype::new(
+            self.current_file,
+            Visibility::Public,
             name.lexeme.clone(),
             params.to_owned(),
             params.len(),
@@ -902,6 +830,7 @@ impl SemanticAnalyzer {
     /// The returned statement contains the function prototype along with its annotated body.
     fn analyze_function(
         &mut self,
+        access: &Visibility,
         name: &Token,
         params: &[FieldDeclaration],
         body: &Statement,
@@ -936,6 +865,8 @@ impl SemanticAnalyzer {
         }
 
         let function_definition = FunctionPrototype::new(
+            self.current_file,
+            *access,
             name.lexeme.clone(),
             params.to_owned(),
             params.len(),
@@ -1149,6 +1080,7 @@ impl SemanticAnalyzer {
     /// An `AnnotatedStatement::Type` containing the analyzed type declaration.
     fn analyze_type(
         &mut self,
+        access: &Visibility,
         name: &Token,
         archetypes: &Vec<Token>,
         fields: &[FieldDeclaration],
@@ -1175,7 +1107,12 @@ impl SemanticAnalyzer {
 
         self.current_symbol_kind = SymbolKind::Kind;
 
-        let mut decl = TypeDecl::new(name.lexeme.clone(), self.get_static_id());
+        let mut decl = TypeDecl::new(
+            self.current_file,
+            *access,
+            name.lexeme.clone(),
+            self.get_static_id(),
+        );
         decl.add_archetype(Archetype::new("object".to_string()));
         decl.add_archetype(Archetype::new(name.lexeme.clone()));
 
@@ -1231,6 +1168,8 @@ impl SemanticAnalyzer {
         self.define_type(type_descriptor.clone());
 
         let constructor = FunctionPrototype::new(
+            self.current_file,
+            *access,
             name.lexeme.clone(),
             fields.to_owned(),
             type_fields.len(),
@@ -1291,7 +1230,7 @@ impl SemanticAnalyzer {
         }
 
         match next {
-            Statement::Function(_, _, _, _, span, line) => {
+            Statement::Function(_, _, _, _, _, span, line) => {
                 self.current_decorator = Decorator::new(attribute_usages);
                 Ok(AnnotatedStatement::Decorator(
                     hash_token.clone(),
@@ -1311,7 +1250,7 @@ impl SemanticAnalyzer {
                 ))
             }
 
-            Statement::InternalDefinition(_, _, _, _, span, line) => {
+            Statement::InternalDefinition(_, _, _, _, _, span, line) => {
                 self.current_decorator = Decorator::new(attribute_usages);
                 Ok(AnnotatedStatement::Decorator(
                     hash_token.clone(),

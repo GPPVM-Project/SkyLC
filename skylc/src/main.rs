@@ -87,7 +87,7 @@ fn compile(args: &CompileArgs) -> Result<()> {
         },
     };
 
-    let config = CompilerConfig::new(args.clone().input_file, stdlib_path, args.verbose);
+    let config = CompilerConfig::new(args.clone().input_file, stdlib_path, args.verbose, false);
 
     let mut pipeline = Pipeline::new()
         .add_stage(Box::new(Lexer::default()))
@@ -129,7 +129,12 @@ fn compile(args: &CompileArgs) -> Result<()> {
 fn run(args: &RunArgs) -> anyhow::Result<()> {
     let _skyl_config = load_config().map_err(|e| Error::msg(e.to_string()))?;
 
-    let config = CompilerConfig::new(args.bytecode_file.clone(), PathBuf::new(), args.verbose);
+    let config = CompilerConfig::new(
+        args.bytecode_file.clone(),
+        PathBuf::new(),
+        args.verbose,
+        args.batch,
+    );
 
     let bytecode = Bytecode::load_from_file(&args.bytecode_file).context(format!(
         "Failed to load bytecode from '{}'",

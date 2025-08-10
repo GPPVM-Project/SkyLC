@@ -1,16 +1,16 @@
 import stdlib.prelude;
 
-type Vec3 {
+pub type Vec3 {
     x: float,
     y: float,
     z: float,
 }
 
-type Vec2 {
+pub type Vec2 {
     x: float,
     y: float,
 }
 
-internal def distance(self: Vec2, other: Vec2) -> float {
+pub internal def distance(self: Vec2, other: Vec2) -> float {
     return ((other.x - self.x).pow(2) + (other.y - self.y).pow(2)).sqrt();
 }

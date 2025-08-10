@@ -28,6 +28,9 @@ pub struct RunArgs {
 
     #[arg(short, long)]
     pub verbose: bool,
+
+    #[arg(short, long)]
+    pub batch: bool,
 }
 
 #[derive(Parser, Debug, Clone)]
