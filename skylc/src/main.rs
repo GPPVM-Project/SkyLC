@@ -1,19 +1,22 @@
 mod cli;
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Error, Result};
 use clap::Parser;
 use skyl_codegen::BytecodeGenerator;
-use skyl_data::{read_file_without_bom, CompilerConfig, CompilerContext, IntermediateCode};
+use skyl_data::{
+    bytecode::Bytecode, read_file_without_bom, CompilerConfig, CompilerContext, IntermediateCode,
+};
 use skyl_ir::IRGenerator;
 use skyl_semantics::SemanticAnalyzer;
 use skyl_stdlib::StdLibrary;
 use skyl_vm::virtual_machine::VirtualMachine;
 use skylc::{
+    config::{decode_base64_key, load_config},
     decompiler::Decompiler,
     find_stdlib_path,
     version::{CODENAME, VERSION},
 };
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, ffi::OsStr, rc::Rc};
 
 use cli::{Cli, Commands, CompileArgs};
 use skyl_driver::{
@@ -21,6 +24,8 @@ use skyl_driver::{
     gpp_error, Pipeline,
 };
 use skyl_lexer::Lexer;
+
+use crate::cli::RunArgs;
 
 #[cfg(debug_assertions)]
 fn load_dotenv() {
@@ -46,6 +51,7 @@ fn main() -> Result<()> {
             Commands::Compile(args) => {
                 compile(args)?;
             }
+            Commands::Run(args) => run(args)?,
         }
     }
 
@@ -53,6 +59,12 @@ fn main() -> Result<()> {
 }
 
 fn compile(args: &CompileArgs) -> Result<()> {
+    let skyl_config = load_config().map_err(|e| Error::msg(e.to_string()))?;
+
+    if args.output.extension() != Some(OsStr::new("grc")) {
+        return Err(Error::msg("Please specify `.grc` file for output argument"));
+    }
+
     let source_code = Rc::new(
         read_file_without_bom(args.input_file.to_str().unwrap()).with_context(|| {
             format!("Failed to read input file: '{}'", args.input_file.display())
@@ -106,9 +118,40 @@ fn compile(args: &CompileArgs) -> Result<()> {
     let bytecode_gen = BytecodeGenerator::new();
     let bytecode = bytecode_gen.generate(ir);
 
+    let key_bytes = decode_base64_key(&skyl_config.bytecode.checksum_key)
+        .map_err(|e| Error::msg(format!("Invalid checksum key base64: {e}")))?;
+
+    bytecode
+        .save_to_file(&args.output, &key_bytes)
+        .map_err(|e| Error::msg(format!("Compilation Error: {e}")))
+        .with_context(|| format!("Failed to save bytecode to '{}'", args.output.display()))?;
+
+    Ok(())
+}
+
+fn run(args: &RunArgs) -> anyhow::Result<()> {
+    let skyl_config = load_config().map_err(|e| Error::msg(e.to_string()))?;
+
+    let stdlib_path = match find_stdlib_path()? {
+        Some(p) => p,
+        None => anyhow::bail!("The required environment variable SKYL_LIB is not defined."),
+    };
+
+    let config = CompilerConfig::new(args.bytecode_file.clone(), stdlib_path, args.verbose);
+
+    let key_bytes = decode_base64_key(&skyl_config.bytecode.checksum_key)
+        .map_err(|e| Error::msg(format!("Invalid checksum key base64: {e}")))?;
+
+    let bytecode = Bytecode::load_from_file(&args.bytecode_file, &key_bytes).context(format!(
+        "Failed to load bytecode from '{}'",
+        args.bytecode_file.display()
+    ))?;
+
     let mut vm = VirtualMachine::new(&config);
     vm.attach_bytecode(&bytecode);
+
     StdLibrary::register_std_libraries(&mut vm);
+
     vm.interpret();
 
     Ok(())

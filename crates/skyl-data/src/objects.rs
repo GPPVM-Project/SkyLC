@@ -6,6 +6,9 @@ use std::{
     rc::Rc,
 };
 
+use bincode::{Encode, enc::Encoder, error::EncodeError};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
 use crate::memory::GcRef;
 
 #[derive(Debug, Eq, PartialEq)]
@@ -26,6 +29,109 @@ pub enum Value {
     String(Rc<String>),
     Void,
     Object(Rc<RefCell<dyn Object>>),
+}
+
+impl Encode for Value {
+    fn encode<E: Encoder>(&self, encoder: &mut E) -> Result<(), EncodeError> {
+        let helper = match self {
+            Value::Int(i) => ValueSerde::Int(*i),
+            Value::Float(f) => ValueSerde::Float(*f),
+            Value::Bool(b) => ValueSerde::Bool(*b),
+            Value::String(rc_str) => ValueSerde::String(rc_str.as_ref().clone()),
+            Value::Void => ValueSerde::Void,
+            Value::Object(obj_rc) => {
+                let obj = obj_rc.borrow();
+                // Tenta serializar o objeto de acordo com seu tipo
+                if let Some(instance) = obj.as_any().downcast_ref::<Instance>() {
+                    ValueSerde::Object(SerializableObject::Instance {
+                        fields: instance.fields.clone(),
+                    })
+                } else if let Some(list) = obj.as_any().downcast_ref::<List>() {
+                    ValueSerde::Object(SerializableObject::List {
+                        elements: list.elements.clone(),
+                    })
+                } else {
+                    return Err(EncodeError::Other(
+                        "Unsupported object type for serialization",
+                    ));
+                }
+            }
+        };
+
+        helper.encode(encoder)
+    }
+}
+
+#[derive(Serialize, Deserialize, Encode)]
+enum ValueSerde {
+    Int(i32),
+    Float(f32),
+    Bool(bool),
+    String(String),
+    Void,
+    Object(SerializableObject),
+}
+
+#[derive(Serialize, Deserialize, Encode)]
+pub enum SerializableObject {
+    Instance { fields: Vec<Value> },
+    List { elements: Vec<Value> },
+}
+
+impl<'de> Deserialize<'de> for Value {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let value_serde = ValueSerde::deserialize(deserializer)?;
+        Ok(match value_serde {
+            ValueSerde::Int(i) => Value::Int(i),
+            ValueSerde::Float(f) => Value::Float(f),
+            ValueSerde::Bool(b) => Value::Bool(b),
+            ValueSerde::String(s) => Value::String(Rc::new(s)),
+            ValueSerde::Void => Value::Void,
+            ValueSerde::Object(obj) => match obj {
+                SerializableObject::Instance { fields } => {
+                    Value::Object(Rc::new(RefCell::new(Instance::new(fields))))
+                }
+                SerializableObject::List { elements } => {
+                    Value::Object(Rc::new(RefCell::new(List::new(elements))))
+                }
+            },
+        })
+    }
+}
+
+impl Serialize for Value {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match self {
+            Value::Int(i) => ValueSerde::Int(*i).serialize(serializer),
+            Value::Float(f) => ValueSerde::Float(*f).serialize(serializer),
+            Value::Bool(b) => ValueSerde::Bool(*b).serialize(serializer),
+            Value::String(s) => ValueSerde::String(s.as_ref().clone()).serialize(serializer),
+            Value::Void => ValueSerde::Void.serialize(serializer),
+            Value::Object(o) => {
+                let obj = o.borrow();
+                let serializable = if let Some(instance) = obj.as_any().downcast_ref::<Instance>() {
+                    SerializableObject::Instance {
+                        fields: instance.fields.clone(),
+                    }
+                } else if let Some(list) = obj.as_any().downcast_ref::<List>() {
+                    SerializableObject::List {
+                        elements: list.elements.clone(),
+                    }
+                } else {
+                    return Err(serde::ser::Error::custom(
+                        "Unsupported object type for serialization",
+                    ));
+                };
+                ValueSerde::Object(serializable).serialize(serializer)
+            }
+        }
+    }
 }
 
 pub enum ObjectColor {}
@@ -102,6 +208,7 @@ impl Debug for dyn Object {
     }
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct Instance {
     pub fields: Vec<Value>,
 }
@@ -166,6 +273,7 @@ impl Object for Instance {
     }
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct List {
     pub elements: Vec<Value>,
 }

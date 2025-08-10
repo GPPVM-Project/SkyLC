@@ -1,8 +1,11 @@
 use std::collections::HashMap;
 
+use bincode::Encode;
+use serde::{Deserialize, Serialize};
+
 use crate::{CompileTimeChunk, TypeDescriptor};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize, Encode)]
 pub struct NativeFunctionInfo {
     pub arity: u8,
     pub id: u32,

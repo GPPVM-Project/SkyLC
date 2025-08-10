@@ -16,6 +16,18 @@ pub struct Cli {
 pub enum Commands {
     #[command(name = "compile", short_flag = 'c')]
     Compile(CompileArgs),
+
+    #[command(name = "run", short_flag = 'r')]
+    Run(RunArgs),
+}
+
+#[derive(Parser, Debug, Clone)]
+pub struct RunArgs {
+    #[arg(required = true)]
+    pub bytecode_file: PathBuf,
+
+    #[arg(short, long)]
+    pub verbose: bool,
 }
 
 #[derive(Parser, Debug, Clone)]
@@ -24,7 +36,7 @@ pub struct CompileArgs {
     pub input_file: PathBuf,
 
     #[arg(short, long)]
-    pub output: Option<PathBuf>,
+    pub output: PathBuf,
 
     #[arg(short, long)]
     pub verbose: bool,

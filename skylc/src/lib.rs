@@ -3,6 +3,7 @@ use std::{env, path::PathBuf};
 use anyhow::Error;
 
 pub mod cli;
+pub mod config;
 pub mod decompiler;
 pub mod version;
 
