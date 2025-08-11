@@ -14,11 +14,15 @@ pub struct BytecodeGenConfig {
 }
 
 pub fn load_config() -> Result<SkylConfig, ConfigError> {
-    let config = Config::builder()
-        .add_source(config::File::with_name("config"))
-        .build()?;
+    // let config = Config::builder()
+    //     .add_source(config::File::with_name("config"))
+    //     .build()?;
 
-    let skyl_config: SkylConfig = config.try_deserialize()?;
+    let skyl_config: SkylConfig = SkylConfig {
+        bytecode: BytecodeGenConfig {
+            checksum_key: "lOEyPD/aMv631wE+jUdYMnM7qRdBJLzafS6ZRk6LwHg=".into(),
+        },
+    };
     Ok(skyl_config)
 }
 
