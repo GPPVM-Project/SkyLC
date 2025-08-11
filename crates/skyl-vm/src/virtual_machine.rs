@@ -417,10 +417,6 @@ impl VirtualMachine {
     pub fn handle_print(&mut self) {
         let value = self.pop();
 
-        if self.stdout.buffer().len() > MAX_STDOUT_BUFFER_SIZE || !self.config.batch_stdout {
-            self.stdout.flush().unwrap();
-        }
-
         match value {
             Value::Bool(b) => writeln!(self.stdout, "{b}").unwrap(),
             Value::Int(i) => writeln!(self.stdout, "{i}").unwrap(),
@@ -428,6 +424,10 @@ impl VirtualMachine {
             Value::String(s) => writeln!(self.stdout, "{s}").unwrap(),
             Value::Object(obj) => writeln!(self.stdout, "{}", obj.borrow().to_string()).unwrap(),
             _ => todo!(),
+        }
+
+        if self.stdout.buffer().len() > MAX_STDOUT_BUFFER_SIZE || !self.config.batch_stdout {
+            self.stdout.flush().unwrap();
         }
     }
 
