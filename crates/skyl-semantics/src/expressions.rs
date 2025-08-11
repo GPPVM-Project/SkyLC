@@ -2,7 +2,7 @@
 
 use skyl_data::{
     AnnotatedExpression, Archetype, Expression, MethodDescriptor, Operator, OperatorKind, Span,
-    Token, TokenKind, Visibility,
+    Token, TokenKind,
 };
 use skyl_driver::{
     errors::{CompilationError, CompilationErrorKind},
