@@ -1,5 +1,5 @@
 use base64::{engine::general_purpose::STANDARD, Engine};
-use config::{Config, ConfigError};
+use config::{Config, ConfigError, File, FileFormat};
 use rand::RngCore;
 use serde::Deserialize;
 
@@ -14,15 +14,13 @@ pub struct BytecodeGenConfig {
 }
 
 pub fn load_config() -> Result<SkylConfig, ConfigError> {
-    // let config = Config::builder()
-    //     .add_source(config::File::with_name("config"))
-    //     .build()?;
+    const CONFIG_STR: &str = include_str!("../../Config.toml");
 
-    let skyl_config: SkylConfig = SkylConfig {
-        bytecode: BytecodeGenConfig {
-            checksum_key: "lOEyPD/aMv631wE+jUdYMnM7qRdBJLzafS6ZRk6LwHg=".into(),
-        },
-    };
+    let config = Config::builder()
+        .add_source(File::from_str(CONFIG_STR, FileFormat::Toml))
+        .build()?;
+
+    let skyl_config: SkylConfig = config.try_deserialize()?;
     Ok(skyl_config)
 }
 

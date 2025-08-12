@@ -1,17 +1,9 @@
 # =============================================================================
 # SkyL Language - Build, Deploy, and Global Setup Script (Debug Mode)
-#
-# 1. Checks for Administrator privileges and requests them if necessary.
-# 2. Verifies if Rust is installed, installs if missing.
-# 3. Compiles the project with cargo build.
-# 4. Creates the directory structure dist/bin and dist/lib/skyl.
-# 5. Copies the skylc.exe binary.
-# 6. Copies and renames the stdlib to dist/lib/skyl/stdlib.
-# 7. Sets permanent environment variables (SKYL_LIB and PATH).
 # =============================================================================
 
 # --- Project Configuration ---
-$StdLibSourcePath = "stdlib"  # Folder containing the stdlib (e.g. stdlib/src/*.gpp)
+$StdLibSourcePath = "stdlib"  
 $OutputDir = "dist"
 $OutputBinDir = Join-Path $OutputDir "bin"
 $OutputLibDir = Join-Path $OutputDir "lib\skyl"
@@ -32,20 +24,27 @@ Set-Location -Path $PSScriptRoot
 
 # 2. Check if Rust is installed
 Write-Host "Step 2: Checking if Rust is installed..."
-if (-not (Get-Command "cargo.exe" -ErrorAction SilentlyContinue)) {
+$CargoPath = Join-Path $env:USERPROFILE ".cargo\bin\cargo.exe"
+
+if (-not (Test-Path $CargoPath)) {
     Write-Warning "Rust is not installed. Installing Rust using rustup..."
     Invoke-WebRequest -Uri https://static.rust-lang.org/rustup/init.exe -OutFile "$env:TEMP\rustup-init.exe"
     Start-Process -Wait -FilePath "$env:TEMP\rustup-init.exe" -ArgumentList "-y"
     Remove-Item "$env:TEMP\rustup-init.exe"
-    Write-Host "Rust installation completed. Restart this script if any issues occur." -ForegroundColor Cyan
-}
-else {
+    Write-Host "Rust installation completed." -ForegroundColor Cyan
+} else {
     Write-Host "Rust is already installed." -ForegroundColor Green
 }
 
-# 3. Compile with cargo
+# Ensure cargo is usable in this process
+if (-not (Test-Path $CargoPath)) {
+    Write-Error "Cargo was not found after installation. Please restart the script."
+    exit 1
+}
+
+# 3. Compile with cargo (absolute path)
 Write-Host "Step 3: Compiling the workspace with 'cargo build'..."
-cargo build --release
+& $CargoPath build --release
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Cargo build failed. Aborting." -ForegroundColor Red
     exit 1
