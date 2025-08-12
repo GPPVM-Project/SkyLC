@@ -4,6 +4,22 @@
 
 $ErrorActionPreference = "Stop"
 
+# Install Visual Studio Build Tools (C++ only) if not present
+Write-Host "Checking for Visual Studio C++ Build Tools..."
+$LinkerPath = "C:\Program Files (x86)\Microsoft Visual Studio\Installer"
+if (-not (Get-Command link.exe -ErrorAction SilentlyContinue)) {
+    Write-Warning "Visual Studio C++ Build Tools not found. Installing..."
+    $VSInstaller = "$env:TEMP\vs_buildtools.exe"
+    Invoke-WebRequest "https://aka.ms/vs/22/release/vs_BuildTools.exe" -OutFile $VSInstaller
+    Start-Process -FilePath $VSInstaller -ArgumentList `
+        "--quiet --wait --norestart --nocache --add Microsoft.VisualStudio.Workload.VCTools" `
+        -Wait
+    Remove-Item $VSInstaller
+    Write-Host "Visual Studio C++ Build Tools installed." -ForegroundColor Green
+} else {
+    Write-Host "Visual Studio C++ Build Tools already installed." -ForegroundColor Green
+}
+
 # --- Project Configuration ---
 $StdLibSourcePath = "stdlib"
 $OutputDir = "dist"
