@@ -23,37 +23,7 @@ Write-Host "Running with Administrator privileges." -ForegroundColor Cyan
 Set-Location -Path $PSScriptRoot
 
 # 2. Install Visual Studio Build Tools (C++ workload) if not found
-Write-Host "Step 2: Checking for Visual Studio C++ Build Tools..."
-# Check for presence of link.exe (common linker for MSVC toolchain)
-if (-not (Get-Command link.exe -ErrorAction SilentlyContinue)) {
-    Write-Warning "Visual Studio C++ Build Tools not found. Installing..."
-
-    $VSInstaller = "$env:TEMP\vs_buildtools.exe"
-    if (Test-Path $VSInstaller) {
-        Remove-Item $VSInstaller -Force
-    }
-
-    Invoke-WebRequest "https://aka.ms/vs/17/release/vs_BuildTools.exe" -OutFile $VSInstaller -UseBasicParsing
-
-    $info = Get-Item $VSInstaller
-    Write-Host "Downloaded $($info.Name), size: $([math]::Round($info.Length / 1MB, 2)) MB"
-
-    if ($info.Length -lt 50000000) {  # Se arquivo < 50MB, suspeito de download falho
-        Write-Error "Download incompleto ou corrompido. Por favor, tente novamente."
-        Read-Host "Press Enter to exit"
-        exit 1
-    }
-
-    Start-Process -FilePath $VSInstaller -ArgumentList `
-        "--quiet --wait --norestart --nocache --add Microsoft.VisualStudio.Workload.VCTools" `
-        -Wait -NoNewWindow
-
-    Remove-Item $VSInstaller
-
-    Write-Host "Visual Studio C++ Build Tools instalado com sucesso." -ForegroundColor Green
-} else {
-    Write-Host "Visual Studio C++ Build Tools já instalado." -ForegroundColor Green
-}
+winget install Microsoft.VisualStudio.2022.BuildTools --force --override "--wait --passive --add Microsoft.VisualStudio.Component.VC.Tools.x86.x64 --add Microsoft.VisualStudio.Component.Windows11SDK.22621"
 
 # 3. Check if Rust is installed
 Write-Host "Step 3: Checking if Rust is installed..."
