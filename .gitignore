@@ -15,5 +15,4 @@ Thumbs.db
 .env
 .VSCodeCounter
 
-*.grc
 Config.toml
