@@ -14,13 +14,17 @@ pub struct BytecodeGenConfig {
 }
 
 pub fn load_config() -> Result<SkylConfig, ConfigError> {
-    const CONFIG_STR: &str = include_str!("../../Config.toml");
+    // const CONFIG_STR: &str = include_str!("../../Config.toml");
 
-    let config = Config::builder()
-        .add_source(File::from_str(CONFIG_STR, FileFormat::Toml))
-        .build()?;
+    // let config = Config::builder()
+    //     .add_source(File::from_str(CONFIG_STR, FileFormat::Toml))
+    //     .build()?;
 
-    let skyl_config: SkylConfig = config.try_deserialize()?;
+    let skyl_config: SkylConfig = SkylConfig {
+        bytecode: BytecodeGenConfig {
+            checksum_key: "lOEyPD/aMv631wE+jUdYMnM7qRdBJszafS6ZRk6LwHg=".into(),
+        },
+    };
     Ok(skyl_config)
 }
 
