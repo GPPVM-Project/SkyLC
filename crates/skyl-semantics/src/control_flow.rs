@@ -24,6 +24,25 @@ impl SemanticAnalyzer {
                 Ok(true) => {}
             }
         }
+
+        if let AnnotatedStatement::InternalDefinition(_, definition, body, _, _) = stmt
+            && !definition.return_kind.borrow().is_void()
+        {
+            match Self::returns_in_all_paths(body) {
+                Ok(false) => {
+                    self.report_error(CompilationError::with_span(
+                        CompilationErrorKind::FunctionMayNotReturn {
+                            function_kind: "function".into(),
+                            name: definition.name.clone(),
+                        },
+                        Some(body.line()),
+                        body.span(),
+                    ));
+                }
+                Err(e) => self.report_error(e),
+                Ok(true) => {}
+            }
+        }
     }
 
     fn returns_in_all_paths(stmt: &AnnotatedStatement) -> TyResult<bool> {
