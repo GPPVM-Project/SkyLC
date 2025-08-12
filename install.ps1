@@ -121,4 +121,9 @@ $AbsoluteLibPath = (Resolve-Path -Path $OutputLibDir).Path
 
 $CurrentUserPath = [System.Environment]::GetEnvironmentVariable("Path", [System.EnvironmentVariableTarget]::User)
 if ($CurrentUserPath -notlike "*$AbsoluteBinPath*") {
-    [Sy]()
+    [System.Environment]::SetEnvironmentVariable("Path", "$AbsoluteBinPath;$CurrentUserPath", [System.EnvironmentVariableTarget]::User)
+}
+
+Write-Host "`nScript finished successfully!" -ForegroundColor Green
+Write-Host "IMPORTANT: Open a NEW terminal to use 'skylc' globally." -ForegroundColor Magenta
+Read-Host "Press Enter to exit"
