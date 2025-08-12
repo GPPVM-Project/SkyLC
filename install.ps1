@@ -29,7 +29,7 @@ $CargoPath = Join-Path $env:USERPROFILE ".cargo\bin\cargo.exe"
 if (-not (Test-Path $CargoPath)) {
     Write-Warning "Rust is not installed. Installing Rust..."
     $RustupPath = "$env:TEMP\rustup-init.exe"
-    Invoke-WebRequest -Uri https://static.rust-lang.org/rustup/init.exe -OutFile $RustupPath
+    Invoke-WebRequest https://win.rustup.rs/x86_64 -OutFile $RustupPath
     Start-Process -Wait -FilePath $RustupPath -ArgumentList "-y"
     Remove-Item $RustupPath
 
