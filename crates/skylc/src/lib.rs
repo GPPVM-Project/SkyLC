@@ -4,7 +4,6 @@ use anyhow::Error;
 
 pub mod cli;
 pub mod config;
-pub mod decompiler;
 pub mod version;
 
 pub fn find_stdlib_path() -> Result<Option<PathBuf>, Error> {

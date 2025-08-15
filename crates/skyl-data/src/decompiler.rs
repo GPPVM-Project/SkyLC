@@ -1,4 +1,4 @@
-use skyl_data::{CompileTimeChunk, IRFunction, Instruction, IntermediateCode, TypeDescriptor};
+use crate::{CompileTimeChunk, IRFunction, Instruction, IntermediateCode, TypeDescriptor};
 
 pub struct Decompiler {}
 

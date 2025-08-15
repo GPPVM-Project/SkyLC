@@ -23,6 +23,7 @@ impl Default for IRGenerator {
             local_values: CompileTimeStack::new(),
             current_native_id: 0,
             native_functions: Default::default(),
+            constant_values: Default::default(),
         }
     }
 }

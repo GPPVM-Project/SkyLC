@@ -2,7 +2,8 @@ use anyhow::{Context, Error, Result};
 use clap::Parser;
 use skyl_codegen::BytecodeGenerator;
 use skyl_data::{
-    bytecode::Bytecode, read_file_without_bom, CompilerConfig, CompilerContext, IntermediateCode,
+    bytecode::Bytecode, read_file_without_bom, CompilerConfig, CompilerContext, Decompiler,
+    IntermediateCode,
 };
 use skyl_ir::IRGenerator;
 use skyl_semantics::SemanticAnalyzer;
@@ -10,7 +11,6 @@ use skyl_stdlib::StdLibrary;
 use skyl_vm::virtual_machine::VirtualMachine;
 use skylc::{
     config::load_config,
-    decompiler::Decompiler,
     find_stdlib_path,
     version::{CODENAME, VERSION},
 };

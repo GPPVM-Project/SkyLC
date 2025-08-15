@@ -3,24 +3,28 @@ use std::{cell::RefCell, cmp::Ordering, collections::HashMap, rc::Rc};
 use skyl_data::{
     AnnotatedAST, AnnotatedExpression, AnnotatedStatement, CodeGraph, CompileTimeChunk,
     CompileTimeValue, FunctionPrototype, IRFunction, IRType, Instruction, IntermediateCode,
-    Literal, MethodDescriptor, NativeFunctionInfo, OperatorKind, SemanticCode, SymbolTable, Token,
-    TokenKind, TypeDescriptor,
+    Literal, MethodDescriptor, Mutability, NativeFunctionInfo, OperatorKind, SemanticCode,
+    SymbolTable, Token, TokenKind, TypeDescriptor,
 };
 use skyl_driver::{errors::CompilerErrorReporter, gpp_error};
 
 #[derive(Debug, Clone)]
-struct LocalValue {
+pub struct LocalValue {
     name: String,
     depth: u32,
-    _is_initialized: bool,
+    is_initialized: bool,
+    mutability: Mutability,
+    value: Option<CompileTimeValue>,
 }
 
 impl LocalValue {
-    fn new(name: String, depth: u32, is_initialized: bool) -> Self {
+    pub(crate) fn new(name: String, depth: u32, is_initialized: bool) -> Self {
         Self {
             name,
             depth,
-            _is_initialized: is_initialized,
+            is_initialized,
+            mutability: Mutability::Constant,
+            value: None,
         }
     }
 }
@@ -35,15 +39,15 @@ impl CompileTimeStack {
         Self { values: Vec::new() }
     }
 
-    fn push(&mut self, value: LocalValue) {
+    pub fn push(&mut self, value: LocalValue) {
         self.values.push(value);
     }
 
-    // fn pop(&mut self) -> LocalValue {
+    // pub(crate) fn pop(&mut self) -> LocalValue {
     //     self.values.pop().unwrap()
     // }
 
-    // pub fn count(&self) -> usize {
+    // pub pub(crate) fn count(&self) -> usize {
     //     self.values.len()
     // }
 }
@@ -60,6 +64,7 @@ pub struct IRGenerator {
     pub(crate) local_values: CompileTimeStack,
     pub(crate) current_depth: u32,
     pub(crate) current_native_id: u32,
+    pub(crate) constant_values: Vec<HashMap<String, CompileTimeValue>>,
 }
 
 impl IRGenerator {
@@ -76,6 +81,7 @@ impl IRGenerator {
             local_values: CompileTimeStack::new(),
             current_native_id: 0,
             native_functions: HashMap::new(),
+            constant_values: Vec::new(),
         }
     }
 
@@ -100,7 +106,7 @@ impl IRGenerator {
         )
     }
 
-    fn generate_ir_for(&mut self, annotated_stmt: &AnnotatedStatement) -> Vec<u8> {
+    pub(crate) fn generate_ir_for(&mut self, annotated_stmt: &AnnotatedStatement) -> Vec<u8> {
         match annotated_stmt {
             AnnotatedStatement::Decorator(_, _, _, _) => {
                 vec![]
@@ -146,7 +152,7 @@ impl IRGenerator {
         }
     }
 
-    // fn is_valid_ir_statement(&self, statement: &AnnotatedStatement) -> bool {
+    // pub(crate) fn is_valid_ir_statement(&self, statement: &AnnotatedStatement) -> bool {
     //     matches!(
     //         statement,
     //         AnnotatedStatement::Expression(_, _, _)
@@ -159,7 +165,7 @@ impl IRGenerator {
     //     )
     // }
 
-    fn generate_function_ir(
+    pub(crate) fn generate_function_ir(
         &mut self,
         prototype: &FunctionPrototype,
         body: &AnnotatedStatement,
@@ -207,12 +213,12 @@ impl IRGenerator {
         code
     }
 
-    fn generate_variable_decl_ir(
+    pub(crate) fn generate_variable_decl_ir(
         &mut self,
         name: &Token,
         value: &Option<AnnotatedExpression>,
     ) -> Vec<u8> {
-        self.declare_local(name.lexeme.clone(), true);
+        self.declare_local(name.lexeme.clone(), false);
 
         let mut code = Vec::new();
 
@@ -232,26 +238,42 @@ impl IRGenerator {
         code
     }
 
-    // fn get_value_in_stack(&mut self, depth: u32) -> &LocalValue {
+    // pub(crate) fn get_value_in_stack(&mut self, depth: u32) -> &LocalValue {
     //     &self.local_values.values[depth as usize]
     // }
 
-    fn get_in_depth(&self, name: String) -> u32 {
-        for (index, value) in self.local_values.values.iter().enumerate() {
+    pub(crate) fn get_in_depth(&self, name: String) -> u32 {
+        for (index, value) in self.local_values.values.iter().rev().enumerate() {
             if value.name == name {
-                return index as u32;
+                let index = (self.local_values.values.len() - index - 1) as u32;
+                return index;
             }
         }
 
         0
     }
 
-    fn declare_local(&mut self, name: String, is_initialized: bool) {
+    // pub(crate) fn update_value_mutability(&mut self, name: String) {
+    //     for (index, value) in self.local_values.values.iter_mut().enumerate() {
+    //         if value.name == name {
+    //             if value.is_initialized {
+    //                 value.mutability = Mutability::Mutable;
+    //             } else {
+    //                 value.mutability = Mutability::Constant;
+    //                 value.is_initialized = true;
+    //             }
+    //         }
+    //     }
+
+    //     unreachable!();
+    // }
+
+    pub(crate) fn declare_local(&mut self, name: String, is_initialized: bool) {
         self.local_values
             .push(LocalValue::new(name, self.current_depth, is_initialized));
     }
 
-    fn generate_scope_ir(&mut self, statements: &[Box<AnnotatedStatement>]) -> Vec<u8> {
+    pub(crate) fn generate_scope_ir(&mut self, statements: &[Box<AnnotatedStatement>]) -> Vec<u8> {
         self.begin_scope();
 
         let mut code = Vec::new();
@@ -269,7 +291,7 @@ impl IRGenerator {
         code
     }
 
-    fn generate_expr_ir(&mut self, expr: &AnnotatedExpression) -> Vec<u8> {
+    pub(crate) fn generate_expr_ir(&mut self, expr: &AnnotatedExpression) -> Vec<u8> {
         match expr {
             AnnotatedExpression::Arithmetic(left, op, right, kind) => {
                 self.generate_arithmetic_expr_ir(left, op, right, &kind.borrow())
@@ -329,7 +351,7 @@ impl IRGenerator {
         }
     }
 
-    fn generate_arithmetic_expr_ir(
+    pub(crate) fn generate_arithmetic_expr_ir(
         &mut self,
         left: &AnnotatedExpression,
         op: &Token,
@@ -349,7 +371,7 @@ impl IRGenerator {
         all_bytes
     }
 
-    fn generate_literal_ir(&mut self, token: &Token, kind: &TypeDescriptor) -> Vec<u8> {
+    pub(crate) fn generate_literal_ir(&mut self, token: &Token, kind: &TypeDescriptor) -> Vec<u8> {
         let constant = self.get_constant(token, kind);
         let mut bytes = Vec::new();
 
@@ -373,7 +395,7 @@ impl IRGenerator {
         bytes
     }
 
-    fn get_constant(&self, token: &Token, _kind: &TypeDescriptor) -> CompileTimeValue {
+    pub(crate) fn get_constant(&self, token: &Token, _kind: &TypeDescriptor) -> CompileTimeValue {
         if let TokenKind::Literal(l) = token.kind {
             match l {
                 Literal::Boolean => {
@@ -392,7 +414,7 @@ impl IRGenerator {
         }
     }
 
-    fn generate_assign_expr_ir(
+    pub(crate) fn generate_assign_expr_ir(
         &mut self,
         name: &Token,
         value: &AnnotatedExpression,
@@ -400,6 +422,8 @@ impl IRGenerator {
     ) -> Vec<u8> {
         let mut code = Vec::new();
         let index = self.get_in_depth(name.lexeme.clone());
+
+        // self.update_value_mutability(name.lexeme.clone());
 
         let mut value_code = self.generate_expr_ir(value);
         code.append(&mut value_code);
@@ -410,14 +434,14 @@ impl IRGenerator {
         code
     }
 
-    fn split_u16(&self, short: u16) -> (u8, u8) {
+    pub(crate) fn split_u16(&self, short: u16) -> (u8, u8) {
         let high = (short >> 8) as u8;
         let low = (short & 0xff) as u8;
 
         (high, low)
     }
 
-    fn split_u32(&self, value: u32) -> (u8, u8, u8, u8) {
+    pub(crate) fn split_u32(&self, value: u32) -> (u8, u8, u8, u8) {
         let byte1 = (value >> 24) as u8;
         let byte2 = (value >> 16) as u8;
         let byte3 = (value >> 8) as u8;
@@ -426,7 +450,7 @@ impl IRGenerator {
         (byte1, byte2, byte3, byte4)
     }
 
-    fn convert_operator_to_instruction(&self, op: &Token) -> Instruction {
+    pub(crate) fn convert_operator_to_instruction(&self, op: &Token) -> Instruction {
         if let TokenKind::Operator(operator) = op.kind {
             match operator {
                 OperatorKind::And => Instruction::And,
@@ -456,19 +480,20 @@ impl IRGenerator {
         }
     }
 
-    fn emit_byte(&mut self, code: &mut Vec<u8>, byte: u8) {
+    pub(crate) fn emit_byte(&mut self, code: &mut Vec<u8>, byte: u8) {
         code.push(byte);
     }
 
-    fn emit_instruction(&mut self, code: &mut Vec<u8>, instruction: Instruction) {
+    pub(crate) fn emit_instruction(&mut self, code: &mut Vec<u8>, instruction: Instruction) {
         code.push(instruction.into());
     }
 
-    fn begin_scope(&mut self) {
+    pub(crate) fn begin_scope(&mut self) {
+        self.constant_values.push(HashMap::new());
         self.current_depth += 1;
     }
 
-    fn end_scope(&mut self, code: &mut Vec<u8>) {
+    pub(crate) fn end_scope(&mut self, code: &mut Vec<u8>) {
         let mut count = 0;
         for value in self.local_values.values.iter().rev() {
             if value.depth < self.current_depth {
@@ -483,10 +508,15 @@ impl IRGenerator {
             self.local_values.values.pop();
         }
 
+        self.constant_values.pop();
         self.current_depth -= 1;
     }
 
-    fn generate_variable_expr_ir(&mut self, name: &Token, _kind: &TypeDescriptor) -> Vec<u8> {
+    pub(crate) fn generate_variable_expr_ir(
+        &mut self,
+        name: &Token,
+        _kind: &TypeDescriptor,
+    ) -> Vec<u8> {
         let index = self.get_in_depth(name.lexeme.clone());
 
         let mut code: Vec<u8> = Vec::new();
@@ -506,7 +536,7 @@ impl IRGenerator {
         code
     }
 
-    fn generate_return_ir(&mut self, value: &Option<AnnotatedExpression>) -> Vec<u8> {
+    pub(crate) fn generate_return_ir(&mut self, value: &Option<AnnotatedExpression>) -> Vec<u8> {
         let mut code = Vec::new();
 
         match value {
@@ -521,7 +551,7 @@ impl IRGenerator {
         code
     }
 
-    fn generate_call_expr_ir(
+    pub(crate) fn generate_call_expr_ir(
         &mut self,
         proto: &FunctionPrototype,
         _callee: &Token,
@@ -554,7 +584,7 @@ impl IRGenerator {
         code
     }
 
-    fn generate_call_native_expr_ir(
+    pub(crate) fn generate_call_native_expr_ir(
         &mut self,
         proto: &FunctionPrototype,
         _callee: &Token,
@@ -586,7 +616,7 @@ impl IRGenerator {
         code
     }
 
-    fn generate_if_else(
+    pub(crate) fn generate_if_else(
         &mut self,
         _keyword: &Token,
         condition: &AnnotatedExpression,
@@ -642,11 +672,11 @@ impl IRGenerator {
         code
     }
 
-    // fn get_current_chunk_offset(&self) -> usize {
+    // pub(crate) fn get_current_chunk_offset(&self) -> usize {
     //     self.current_chunk.code.len()
     // }
 
-    // fn generate_standard_native_functions(&mut self) {
+    // pub(crate) fn generate_standard_native_functions(&mut self) {
     //     let id = self
     //         .top_level_graph
     //         .get_id_for_new_edge("print".to_string());
@@ -667,7 +697,7 @@ impl IRGenerator {
     //     );
     // }
 
-    fn generate_unary_expr_ir(
+    pub(crate) fn generate_unary_expr_ir(
         &mut self,
         _operator: &Token,
         expression: &AnnotatedExpression,
@@ -681,7 +711,7 @@ impl IRGenerator {
         code
     }
 
-    fn generate_while_ir(
+    pub(crate) fn generate_while_ir(
         &mut self,
         condition: &AnnotatedExpression,
         body: &AnnotatedStatement,
@@ -722,7 +752,7 @@ impl IRGenerator {
         code
     }
 
-    fn generate_postfix_expr_ir(
+    pub(crate) fn generate_postfix_expr_ir(
         &mut self,
         operator: &Token,
         variable: &AnnotatedExpression,
@@ -751,18 +781,22 @@ impl IRGenerator {
         code
     }
 
-    fn is_constructor(&self, proto: &FunctionPrototype, return_kind: &TypeDescriptor) -> bool {
+    pub(crate) fn is_constructor(
+        &self,
+        proto: &FunctionPrototype,
+        return_kind: &TypeDescriptor,
+    ) -> bool {
         proto.name == return_kind.name
     }
 
-    fn generate_type_ir(&mut self, descriptor: &TypeDescriptor) -> Vec<u8> {
+    pub(crate) fn generate_type_ir(&mut self, descriptor: &TypeDescriptor) -> Vec<u8> {
         self.top_level_graph
             .get_id_for_new_edge(descriptor.name.clone());
 
         vec![]
     }
 
-    fn generate_get_expr_ir(
+    pub(crate) fn generate_get_expr_ir(
         &mut self,
         target: &AnnotatedExpression,
         name: &Token,
@@ -778,7 +812,7 @@ impl IRGenerator {
         code
     }
 
-    fn generate_set_ir(
+    pub(crate) fn generate_set_ir(
         &mut self,
         target: &AnnotatedExpression,
         name: &Token,
@@ -797,7 +831,7 @@ impl IRGenerator {
         code
     }
 
-    fn generate_list_ir(
+    pub(crate) fn generate_list_ir(
         &mut self,
         elements: &[Box<AnnotatedExpression>],
         _kind: &TypeDescriptor,
@@ -814,7 +848,7 @@ impl IRGenerator {
         code
     }
 
-    fn generate_list_get_ir(
+    pub(crate) fn generate_list_get_ir(
         &mut self,
         list: &AnnotatedExpression,
         index: &AnnotatedExpression,
@@ -828,7 +862,7 @@ impl IRGenerator {
         code
     }
 
-    fn generate_native_function_ir(&mut self, prototype: &FunctionPrototype) -> Vec<u8> {
+    pub(crate) fn generate_native_function_ir(&mut self, prototype: &FunctionPrototype) -> Vec<u8> {
         let id = self.get_native_id();
 
         self.native_functions.insert(
@@ -839,14 +873,14 @@ impl IRGenerator {
         vec![]
     }
 
-    fn get_native_id(&mut self) -> u32 {
+    pub(crate) fn get_native_id(&mut self) -> u32 {
         let id = self.current_native_id;
         self.current_native_id += 1;
 
         id
     }
 
-    fn generate_internal_definition_ir(
+    pub(crate) fn generate_internal_definition_ir(
         &mut self,
         target: &TypeDescriptor,
         definition: &FunctionPrototype,
@@ -898,7 +932,7 @@ impl IRGenerator {
         code
     }
 
-    fn generate_method_call_ir(
+    pub(crate) fn generate_method_call_ir(
         &mut self,
         _object: &AnnotatedExpression,
         method: &MethodDescriptor,
@@ -947,7 +981,7 @@ impl IRGenerator {
         code
     }
 
-    fn generate_logical_expr_ir(
+    pub(crate) fn generate_logical_expr_ir(
         &mut self,
         left: &AnnotatedExpression,
         op: &Token,

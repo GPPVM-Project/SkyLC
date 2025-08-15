@@ -15,4 +15,7 @@ pub enum SkydCommand {
 }
 
 #[derive(Parser, Debug, Clone)]
-pub struct BuildOptions {}
+pub struct BuildOptions {
+    #[arg(short, long)]
+    pub verbose: bool,
+}

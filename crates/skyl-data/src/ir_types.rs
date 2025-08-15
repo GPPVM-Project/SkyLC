@@ -25,6 +25,12 @@ pub struct IRType {
 }
 
 #[derive(Debug, Clone)]
+pub enum Mutability {
+    Constant,
+    Mutable,
+}
+
+#[derive(Debug, Clone)]
 pub struct IRFunction {
     pub id: u32,
     pub name: String,

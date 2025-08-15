@@ -19,12 +19,12 @@ pub internal def to_string(self: RangeIterator) -> str {
     return "<RangeIterator::" + self.current + "::" + self.range.to_string() + "::skip=" + self.to_skip.to_string() + "::skipped=" + self.skipped.to_string() + ">";
 }
 
-def range(begin: int, end: int) -> RangeIterator {
+pub def range(begin: int, end: int) -> RangeIterator {
     let r = Range(begin, end, 1);
     return RangeIterator(begin, r, false, 0);
 }
 
-def step(begin: int, end: int, step: int) -> RangeIterator {
+pub def step(begin: int, end: int, step: int) -> RangeIterator {
     if step == 0 {
         println("Range expressions cannot have step equal to 0.");
     }

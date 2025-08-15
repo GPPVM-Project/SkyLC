@@ -12,7 +12,7 @@ use skyd::{
     Skyd,
 };
 use skyl_codegen::BytecodeGenerator;
-use skyl_data::{read_file_without_bom, CompilerContext, IntermediateCode};
+use skyl_data::{read_file_without_bom, CompilerContext, Decompiler, IntermediateCode};
 use skyl_driver::{
     errors::{handle_errors, CompilerErrorReporter},
     gpp_error, Pipeline,
@@ -37,7 +37,7 @@ fn main() -> Result<(), SkydError> {
     Ok(())
 }
 
-fn build(_build_options: BuildOptions) -> Result<(), SkydError> {
+fn build(build_options: BuildOptions) -> Result<(), SkydError> {
     let path = std::env::current_dir().unwrap();
     let skyd_toml = path.join("Skyd.toml");
 
@@ -98,6 +98,10 @@ fn build(_build_options: BuildOptions) -> Result<(), SkydError> {
     }
 
     let ir: IntermediateCode = ir.downcast::<IntermediateCode>().unwrap().as_ref().clone();
+
+    if build_options.verbose {
+        Decompiler::decompile(&ir);
+    }
 
     let bytecode_gen = BytecodeGenerator::new();
     let bytecode = bytecode_gen.generate(ir);

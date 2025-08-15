@@ -1,3 +1,4 @@
+mod constant_propagation;
 mod ir_generator;
 pub mod step;
 

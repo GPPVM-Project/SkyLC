@@ -1,6 +1,6 @@
 use std::fs;
 
-use git2::{Cred, FetchOptions, RemoteCallbacks, Repository};
+use git2::{Cred, FetchOptions, RemoteCallbacks};
 
 use crate::{error::SkydError, manifest::Dependencies};
 
