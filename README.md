@@ -8,7 +8,7 @@
 
 ## ✨ Overview
 
-**GPPVM** combines an expressive language with a performant and extensible virtual machine. It is modular by design, enabling the compiler to be extended or customized through a dynamic plugin system.
+**GPPVM** combines an expressive language with a performant and extensible virtual machine.
 
 ### Key Features
 
@@ -24,7 +24,7 @@
 
 ## 🔧 Modular Architecture
 
-The compiler and VM are composed of well-defined, interchangeable stages. Each stage is implemented as a plugin that can be required, replaced, or extended:
+The compiler and VM are composed of well-defined, interchangeable stages:
 
 - **Lexer** (required)
 - **Parser** (required)
