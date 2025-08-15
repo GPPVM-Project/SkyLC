@@ -11,6 +11,7 @@ pub struct SkydCli {
 pub enum SkydCommand {
     Build(BuildOptions),
     Check,
+    Fetch,
 }
 
 #[derive(Parser, Debug, Clone)]

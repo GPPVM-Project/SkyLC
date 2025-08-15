@@ -4,13 +4,15 @@ use anyhow::{Context, Error};
 use clap::Parser;
 use skyd::{
     cli::{BuildOptions, SkydCli, SkydCommand},
-    dependencies::{setup::setup_dependencies, validation::validate_all},
+    dependencies::{
+        fetch::fetch_dependencies, setup::setup_dependencies, validation::validate_all,
+    },
     error::SkydError,
     manifest::get_compiler_config,
     Skyd,
 };
 use skyl_codegen::BytecodeGenerator;
-use skyl_data::{read_file_without_bom, CompilerConfig, CompilerContext, IntermediateCode};
+use skyl_data::{read_file_without_bom, CompilerContext, IntermediateCode};
 use skyl_driver::{
     errors::{handle_errors, CompilerErrorReporter},
     gpp_error, Pipeline,
@@ -27,10 +29,8 @@ fn main() -> Result<(), SkydError> {
             SkydCommand::Build(build_options) => {
                 build(build_options)?;
             }
-
-            SkydCommand::Check => {
-                check()?;
-            }
+            SkydCommand::Check => check()?,
+            SkydCommand::Fetch => fetch()?,
         }
     }
 
@@ -64,7 +64,14 @@ fn build(_build_options: BuildOptions) -> Result<(), SkydError> {
         }
     }
 
-    setup_dependencies(ctx.clone(), skyd.dependencies());
+    match setup_dependencies(ctx.clone(), skyd.dependencies()) {
+        Ok(()) => {}
+        Err(errors) => {
+            for e in errors {
+                eprintln!("{}", e);
+            }
+        }
+    }
 
     let source_code = read_file_without_bom(&entry_path).map_err(|e| SkydError::IO {
         cause: format!("Error to read `{}`: {}", entry_path, e.to_string()),
@@ -137,7 +144,14 @@ fn check() -> Result<(), SkydError> {
         }
     }
 
-    setup_dependencies(ctx.clone(), skyd.dependencies());
+    match setup_dependencies(ctx.clone(), skyd.dependencies()) {
+        Ok(()) => {}
+        Err(errors) => {
+            for e in errors {
+                eprintln!("{}", e);
+            }
+        }
+    }
 
     let source_code = read_file_without_bom(&entry_path).map_err(|e| SkydError::IO {
         cause: format!("Error to read `{}`: {}", entry_path, e.to_string()),
@@ -163,4 +177,19 @@ fn check() -> Result<(), SkydError> {
     }
 
     Ok(())
+}
+
+fn fetch() -> Result<(), SkydError> {
+    let path = std::env::current_dir().unwrap();
+    let skyd_toml = path.join("Skyd.toml");
+
+    if !skyd_toml.exists() {
+        return Err(SkydError::Toml {
+            message: "Skyd.toml file not found in this directory".into(),
+        });
+    }
+
+    let skyd = Skyd::new(skyd_toml)?;
+
+    fetch_dependencies(skyd.dependencies())
 }

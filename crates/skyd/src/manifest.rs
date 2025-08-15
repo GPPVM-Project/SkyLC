@@ -3,7 +3,7 @@ use skyl_data::CompilerConfig;
 use skyl_driver::gpp_error;
 use std::{
     collections::HashMap,
-    fmt, fs, io,
+    fs,
     path::{Path, PathBuf},
 };
 
@@ -35,29 +35,48 @@ pub struct BuildSpecification {
 
 #[derive(Debug, Deserialize)]
 pub struct Dependencies {
-    #[serde(flatten)]
-    pub deps: HashMap<String, Dependency>,
+    pub git: Option<HashMap<String, GitDependency>>,
+    pub path: Option<HashMap<String, PathDependency>>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
-#[serde(untagged)]
-pub enum Dependency {
-    Git { git: String, branch: Option<String> },
-    Path { path: String },
+pub struct GitDependency {
+    pub git: String,
+    pub branch: Option<String>,
+    pub private: Option<bool>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct PathDependency {
+    pub path: String,
 }
 
 impl Dependencies {
     pub fn from_manifest(manifest: &SkydManifest) -> Self {
-        let deps = match &manifest.dependencies {
-            Some(d) => d.deps.clone(),
-            None => HashMap::new(),
+        let git_deps = match &manifest.dependencies {
+            Some(d) => d.git.clone(),
+            None => None,
+        };
+        let path_deps = match &manifest.dependencies {
+            Some(d) => d.path.clone(),
+            None => None,
         };
 
-        Dependencies { deps }
+        Dependencies {
+            git: git_deps,
+            path: path_deps,
+        }
     }
 
     pub fn names(&self) -> Vec<String> {
-        self.deps.keys().cloned().collect()
+        let mut names = Vec::new();
+        if let Some(git_deps) = &self.git {
+            names.extend(git_deps.keys().cloned());
+        }
+        if let Some(path_deps) = &self.path {
+            names.extend(path_deps.keys().cloned());
+        }
+        names
     }
 }
 
@@ -66,31 +85,6 @@ impl SkydManifest {
         let content = fs::read_to_string(&path)?;
         let manifest = toml::from_str(&content)?;
         Ok(manifest)
-    }
-}
-
-impl fmt::Display for SkydError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            SkydError::IO { cause } => write!(f, "IO Error: {}", cause),
-            SkydError::Toml { message } => write!(f, "Error to read TOML file: {}", message),
-        }
-    }
-}
-
-impl From<io::Error> for SkydError {
-    fn from(e: io::Error) -> Self {
-        SkydError::IO {
-            cause: e.to_string(),
-        }
-    }
-}
-
-impl From<toml::de::Error> for SkydError {
-    fn from(e: toml::de::Error) -> Self {
-        SkydError::Toml {
-            message: e.message().to_owned(),
-        }
     }
 }
 
