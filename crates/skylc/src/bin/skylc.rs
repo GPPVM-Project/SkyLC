@@ -1,5 +1,3 @@
-mod cli;
-
 use anyhow::{Context, Error, Result};
 use clap::Parser;
 use skyl_codegen::BytecodeGenerator;
@@ -18,14 +16,12 @@ use skylc::{
 };
 use std::{cell::RefCell, ffi::OsStr, path::PathBuf, rc::Rc};
 
-use cli::{Cli, Commands, CompileArgs};
 use skyl_driver::{
     errors::{handle_errors, CompilerErrorReporter},
     gpp_error, Pipeline,
 };
 use skyl_lexer::Lexer;
-
-use crate::cli::RunArgs;
+use skylc::cli::{Cli, Commands, CompileArgs, RunArgs};
 
 #[cfg(debug_assertions)]
 fn load_dotenv() {
@@ -152,7 +148,7 @@ fn run(args: &RunArgs) -> anyhow::Result<()> {
 }
 
 fn version() {
-    let _ascii_art = include_str!("../../assets/ascii-art.txt");
+    let _ascii_art = include_str!("../../../../assets/ascii-art.txt");
     // println!("\n{}", _ascii_art);
     println!("Skyl {VERSION} {CODENAME}");
 }

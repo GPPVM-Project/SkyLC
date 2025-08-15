@@ -1146,6 +1146,14 @@ impl SemanticAnalyzer {
             return Some(potential_path);
         }
 
+        for dependency in self.ctx().borrow().dependencies() {
+            let potential_path = dependency.join(relative_path);
+
+            if potential_path.exists() {
+                return Some(potential_path);
+            }
+        }
+
         None
     }
 
@@ -1185,5 +1193,9 @@ impl SemanticAnalyzer {
         }
 
         tokens
+    }
+
+    pub(crate) fn ctx(&self) -> Rc<RefCell<CompilerContext>> {
+        self.ctx.clone().unwrap()
     }
 }

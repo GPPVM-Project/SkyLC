@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize, ser::SerializeStruct};
 use sha2::{Digest, Sha256};
 use std::{
     collections::HashMap,
-    fs::File,
+    fs::{self, File},
     io::{Read, Write},
     path::Path,
     rc::Rc,
@@ -95,6 +95,12 @@ impl Bytecode {
         let mut hasher = Sha256::new();
         hasher.update(&encoded);
         let hash = hasher.finalize();
+
+        let path = path.as_ref();
+
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).map_err(|e| EncodeError::Io { inner: e, index: 0 })?;
+        }
 
         let mut file = File::create(path).map_err(|e| EncodeError::Io { inner: e, index: 0 })?;
         file.write_all(&hash)

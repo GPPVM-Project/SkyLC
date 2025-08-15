@@ -22,8 +22,21 @@ Write-Host "Running with Administrator privileges." -ForegroundColor Cyan
 
 Set-Location -Path $PSScriptRoot
 
-# 2. Install Visual Studio Build Tools (C++ workload) if not found
-winget install Microsoft.VisualStudio.2022.BuildTools --force --override "--wait --passive --add Microsoft.VisualStudio.Component.VC.Tools.x86.x64 --add Microsoft.VisualStudio.Component.Windows11SDK.22621"
+# # 2. Install Visual Studio Build Tools (C++ workload) if not found
+# Write-Host "Step 2: Checking for Visual Studio Build Tools..."
+# $VSWherePath = "$env:ProgramFiles(x86)\Microsoft Visual Studio\Installer\vswhere.exe"
+
+# $VSInstalled = $false
+# if (Test-Path $VSWherePath) {
+#     $VSInstalled = & $VSWherePath -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath -nologo
+# }
+
+# if (-not $VSInstalled) {
+#     Write-Host "Visual Studio Build Tools not found. Installing..."
+#     winget install Microsoft.VisualStudio.2022.BuildTools --force --override "--wait --passive --add Microsoft.VisualStudio.Component.VC.Tools.x86.x64 --add Microsoft.VisualStudio.Component.Windows11SDK.22621"
+# } else {
+#     Write-Host "Visual Studio Build Tools already installed. Skipping installation." -ForegroundColor Green
+# }
 
 # 3. Check if Rust is installed
 Write-Host "Step 3: Checking if Rust is installed..."
@@ -65,13 +78,21 @@ New-Item -ItemType Directory -Force $OutputBinDir | Out-Null
 New-Item -ItemType Directory -Force $OutputLibDir | Out-Null
 
 # 6. Copy the binary
-$SourceExe = ".\target\release\skylc.exe"
-if (-not (Test-Path $SourceExe)) {
-    Write-Error "Executable '$SourceExe' not found."
+$SkylExe = ".\target\release\skylc.exe"
+$SkydExe = ".\target\release\skyd.exe"
+if (-not (Test-Path $SkylExe)) {
+    Write-Error "Executable '$SkylExe' not found."
     Read-Host "Press Enter to exit"
     exit 1
 }
-Copy-Item -Path $SourceExe -Destination $OutputBinDir
+if (-not (Test-Path $SkydExe)) {
+    Write-Error "Executable '$SkydExe' not found."
+    Read-Host "Press Enter to exit"
+    exit 1
+}
+
+Copy-Item -Path $SkylExe -Destination $OutputBinDir
+Copy-Item -Path $SkydExe -Destination $OutputBinDir
 
 # 7. Copy stdlib
 if (-not (Test-Path $StdLibSourcePath)) {

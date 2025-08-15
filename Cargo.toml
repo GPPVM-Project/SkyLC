@@ -8,8 +8,11 @@ members = [
     "crates/skyl-ir",
     "crates/skyl-codegen",
     "crates/skyl-vm",
-    "skylc",
-    "crates/skyl-driver", "crates/skyl-stdlib", "crates/skyl-ffi",
+    "crates/skylc",
+    "crates/skyl-driver",
+    "crates/skyl-stdlib",
+    "crates/skyl-ffi",
+    "crates/skyd",
 ]
 
 [workspace.package]

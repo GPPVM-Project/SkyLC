@@ -1,10 +1,11 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, path::PathBuf};
 
 use crate::{SourceFile, SourceFileID};
 
 #[derive(Debug)]
 pub struct CompilerContext {
     modules: Vec<String>,
+    dependencies: Vec<PathBuf>,
     files: HashMap<SourceFileID, SourceFile>,
 }
 
@@ -19,7 +20,12 @@ impl CompilerContext {
         Self {
             files: HashMap::new(),
             modules: Vec::new(),
+            dependencies: Vec::new(),
         }
+    }
+
+    pub fn dependencies(&self) -> &Vec<PathBuf> {
+        &self.dependencies
     }
 
     pub fn register_file(&mut self, file: SourceFile) {
@@ -40,5 +46,9 @@ impl CompilerContext {
 
     pub fn pop_module(&mut self) {
         self.modules.pop();
+    }
+
+    pub fn add_dependency(&mut self, path: PathBuf) {
+        self.dependencies.push(path);
     }
 }
