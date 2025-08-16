@@ -92,7 +92,7 @@ fn validate_git_dependency(git: &str, branch: &Option<String>) -> Result<(), Sky
         .map_err(|e| SkydError::Git(e.message().to_owned()))?;
 
     if let Some(b) = branch {
-        let wanted = format!("refs/heads/{}", b);
+        let wanted = format!("refs/heads/{b}");
         let exists = refs.iter().any(|h| h.name() == wanted);
         if !exists {
             remote.disconnect().unwrap();

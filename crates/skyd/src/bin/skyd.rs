@@ -59,7 +59,7 @@ fn build(build_options: BuildOptions) -> Result<(), SkydError> {
         Ok(()) => {}
         Err(errors) => {
             for e in errors {
-                eprintln!("{}", e);
+                eprintln!("{e}");
             }
         }
     }
@@ -68,13 +68,13 @@ fn build(build_options: BuildOptions) -> Result<(), SkydError> {
         Ok(()) => {}
         Err(errors) => {
             for e in errors {
-                eprintln!("{}", e);
+                eprintln!("{e}");
             }
         }
     }
 
     let source_code = read_file_without_bom(&entry_path).map_err(|e| SkydError::IO {
-        cause: format!("Error to read `{}`: {}", entry_path, e.to_string()),
+        cause: format!("Error to read `{entry_path}`: {e}"),
     })?;
 
     let mut pipeline = Pipeline::new()
@@ -143,7 +143,7 @@ fn check() -> Result<(), SkydError> {
         Ok(()) => {}
         Err(errors) => {
             for e in errors {
-                eprintln!("{}", e);
+                eprintln!("{e}");
             }
         }
     }
@@ -152,13 +152,13 @@ fn check() -> Result<(), SkydError> {
         Ok(()) => {}
         Err(errors) => {
             for e in errors {
-                eprintln!("{}", e);
+                eprintln!("{e}");
             }
         }
     }
 
     let source_code = read_file_without_bom(&entry_path).map_err(|e| SkydError::IO {
-        cause: format!("Error to read `{}`: {}", entry_path, e.to_string()),
+        cause: format!("Error to read `{entry_path}`: {e}"),
     })?;
 
     let mut pipeline = Pipeline::new()

@@ -41,7 +41,6 @@ impl Encode for Value {
             Value::Void => ValueSerde::Void,
             Value::Object(obj_rc) => {
                 let obj = obj_rc.borrow();
-                // Tenta serializar o objeto de acordo com seu tipo
                 if let Some(instance) = obj.as_any().downcast_ref::<Instance>() {
                     ValueSerde::Object(SerializableObject::Instance {
                         fields: instance.fields.clone(),

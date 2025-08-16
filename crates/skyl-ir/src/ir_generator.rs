@@ -12,7 +12,7 @@ use skyl_driver::{errors::CompilerErrorReporter, gpp_error};
 pub struct LocalValue {
     name: String,
     depth: u32,
-    is_initialized: bool,
+    _is_initialized: bool,
     mutability: Mutability,
     value: Option<CompileTimeValue>,
 }
@@ -22,7 +22,7 @@ impl LocalValue {
         Self {
             name,
             depth,
-            is_initialized,
+            _is_initialized: is_initialized,
             mutability: Mutability::Constant,
             value: None,
         }

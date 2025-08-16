@@ -99,7 +99,7 @@ pub fn get_compiler_config(package: &Package) -> Result<CompilerConfig, SkydErro
         },
     };
 
-    return Ok(CompilerConfig {
+    Ok(CompilerConfig {
         entry_point: package.entry.clone().into(),
         root: PathBuf::from(&package.entry)
             .parent()
@@ -110,5 +110,5 @@ pub fn get_compiler_config(package: &Package) -> Result<CompilerConfig, SkydErro
         stdlib_path,
         optimization_level: 0,
         emit_debug_info: false,
-    });
+    })
 }
