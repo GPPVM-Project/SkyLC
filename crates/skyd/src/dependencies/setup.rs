@@ -15,15 +15,14 @@ pub fn setup_dependencies(
         for (name, dep) in git_deps {
             if let Err(e) = setup_git_dependency(ctx.clone(), &dep.git, dep.branch.as_ref()) {
                 errors.push(SkydError::Git(format!(
-                    "Failed to setup git dependency '{}': {}",
-                    name, e
+                    "Failed to setup git dependency '{name}': {e}"
                 )));
             }
         }
     }
 
     if let Some(path_deps) = &dependencies.path {
-        for (_name, dep) in path_deps {
+        for dep in path_deps.values() {
             setup_path_dependency(ctx.clone(), &dep.path);
         }
     }
@@ -42,7 +41,7 @@ fn setup_git_dependency(
 ) -> Result<(), SkydError> {
     let base = dirs::data_dir().unwrap().join(".skyd").join("deps");
 
-    let name = git.split('/').last().unwrap().replace(".git", "");
+    let name = git.split('/').next_back().unwrap().replace(".git", "");
     let path = base.join(&name);
 
     if path.exists() {
@@ -78,7 +77,7 @@ fn setup_git_dependency(
 
     Repository::clone(git, &path).map_err(|e| SkydError::Git(e.to_string()))?;
 
-    println!("Dependency {} cloned into {:?}", name, path);
+    println!("Dependency {name} cloned into {path:?}");
     let src_path = path.join("src");
     ctx.borrow_mut().add_dependency(src_path);
 

@@ -13,8 +13,8 @@ pub struct LocalValue {
     name: String,
     depth: u32,
     _is_initialized: bool,
-    mutability: Mutability,
-    value: Option<CompileTimeValue>,
+    _mutability: Mutability,
+    _value: Option<CompileTimeValue>,
 }
 
 impl LocalValue {
@@ -23,8 +23,8 @@ impl LocalValue {
             name,
             depth,
             _is_initialized: is_initialized,
-            mutability: Mutability::Constant,
-            value: None,
+            _mutability: Mutability::Constant,
+            _value: None,
         }
     }
 }

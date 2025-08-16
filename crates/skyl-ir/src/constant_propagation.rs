@@ -1,9 +1,9 @@
-use skyl_data::{AnnotatedExpression, CompileTimeValue, OperatorKind};
+use skyl_data::{AnnotatedExpression, CompileTimeValue};
 
 use crate::IRGenerator;
 
 impl IRGenerator {
-    pub(crate) fn try_evaluate_constant_expression(
+    pub(crate) fn _try_evaluate_constant_expression(
         &self,
         expr: &AnnotatedExpression,
     ) -> Option<CompileTimeValue> {
@@ -11,7 +11,7 @@ impl IRGenerator {
             AnnotatedExpression::Literal(token, descriptor) => {
                 Some(self.get_constant(token, &descriptor.borrow()))
             }
-            AnnotatedExpression::Variable(name, descriptor) => {
+            AnnotatedExpression::Variable(name, _) => {
                 for scope in self.constant_values.iter().rev() {
                     if let Some(value) = scope.get(&name.lexeme) {
                         return Some(value.clone());

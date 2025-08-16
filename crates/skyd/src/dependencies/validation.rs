@@ -11,8 +11,7 @@ pub fn validate_all(dependencies: &Dependencies) -> Result<(), Vec<SkydError>> {
         for (name, dep) in git_deps {
             if let Err(e) = validate_git_dependency(&dep.git, &dep.branch) {
                 errors.push(SkydError::Git(format!(
-                    "Failed to validate Git dependency '{}': {}",
-                    name, e
+                    "Failed to validate Git dependency '{name}': {e}"
                 )));
             }
         }
@@ -23,7 +22,7 @@ pub fn validate_all(dependencies: &Dependencies) -> Result<(), Vec<SkydError>> {
         for (name, dep) in path_deps {
             if let Err(e) = validate_path_dependency(&dep.path) {
                 errors.push(SkydError::IO {
-                    cause: format!("Failed to validate path dependency '{}': {}", name, e),
+                    cause: format!("Failed to validate path dependency '{name}': {e}"),
                 });
             }
         }
@@ -41,7 +40,7 @@ fn validate_path_dependency(path: &str) -> Result<(), SkydError> {
 
     if !path_buf.exists() {
         return Err(SkydError::IO {
-            cause: format!("Dependency path '{}' does not exist", path),
+            cause: format!("Dependency path '{path}' does not exist"),
         });
     }
 
@@ -51,7 +50,7 @@ fn validate_path_dependency(path: &str) -> Result<(), SkydError> {
 fn validate_git_dependency(git: &str, branch: &Option<String>) -> Result<(), SkydError> {
     let base = dirs::data_dir().unwrap().join(".skyd").join("deps");
 
-    let name = git.split('/').last().unwrap().replace(".git", "");
+    let name = git.split('/').next_back().unwrap().replace(".git", "");
     let path = base.join(&name);
 
     if path.exists() {

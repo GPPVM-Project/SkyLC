@@ -10,7 +10,7 @@ pub fn fetch_dependencies(deps: &Dependencies) -> Result<(), SkydError> {
             let repo_name = dep
                 .git
                 .split('/')
-                .last()
+                .next_back()
                 .unwrap_or("")
                 .trim_end_matches(".git");
 
@@ -18,7 +18,7 @@ pub fn fetch_dependencies(deps: &Dependencies) -> Result<(), SkydError> {
             let path = base.join(repo_name);
 
             if path.exists() {
-                println!("Updating dependency '{}' by re-cloning...", name);
+                println!("Updating dependency '{name}' by re-cloning...");
                 fs::remove_dir_all(&path).map_err(|e| SkydError::IO {
                     cause: format!(
                         "Failed to remove old dependency directory '{}': {}",
@@ -27,7 +27,7 @@ pub fn fetch_dependencies(deps: &Dependencies) -> Result<(), SkydError> {
                     ),
                 })?;
             } else {
-                println!("Cloning dependency '{}' for the first time...", name);
+                println!("Cloning dependency '{name}' for the first time...");
             }
 
             let mut callbacks = RemoteCallbacks::new();
@@ -57,9 +57,9 @@ pub fn fetch_dependencies(deps: &Dependencies) -> Result<(), SkydError> {
 
             builder
                 .clone(&dep.git, &path)
-                .map_err(|e| SkydError::Git(format!("Failed to clone {}: {}", name, e)))?;
+                .map_err(|e| SkydError::Git(format!("Failed to clone {name}: {e}")))?;
 
-            println!("Dependency '{}' successfully updated.", name);
+            println!("Dependency '{name}' successfully updated.");
         }
     }
 
