@@ -3,7 +3,10 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 use skyl_data::{
     KeywordKind, Literal, OperatorKind, PunctuationKind, Span, Token, TokenKind, TokenStream,
 };
-use skyl_driver::errors::{CompilationError, CompilationErrorKind, CompilerErrorReporter};
+use skyl_driver::{
+    errors::{CompilationError, CompilationErrorKind, CompilerErrorReporter},
+    gpp_error,
+};
 
 #[derive(Debug)]
 pub struct Lexer {
@@ -170,7 +173,7 @@ impl Lexer {
                     self.make_token(TokenKind::Operator(OperatorKind::Star));
                 }
             }
-            '|' => self.make_token(TokenKind::Operator(OperatorKind::BitwiseOr)),
+            '|' => self.make_token(TokenKind::Operator(OperatorKind::Pipe)),
             '&' => self.make_token(TokenKind::Operator(OperatorKind::BitwiseAnd)),
             '/' => {
                 if self.try_eat('/') {

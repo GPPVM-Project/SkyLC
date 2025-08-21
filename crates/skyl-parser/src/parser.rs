@@ -657,6 +657,10 @@ impl Parser {
     }
 
     fn type_composition(&mut self) -> Result<Expression, ParseError> {
+        if self.try_eat(&[TokenKind::Keyword(KeywordKind::Def)]) {
+            return self.parse_closure_signature();
+        }
+
         let mut names: Vec<Token> = Vec::new();
 
         names.push(self.eat(
@@ -1283,6 +1287,10 @@ impl Parser {
             ));
         }
 
+        if self.try_eat(&[TokenKind::Operator(OperatorKind::Pipe)]) {
+            return self.parse_closure();
+        }
+
         self.call()
     }
 
@@ -1603,7 +1611,9 @@ impl Parser {
                     | PunctuationKind::Hash
                     | PunctuationKind::RightBrace
                     | PunctuationKind::RightParen,
-                ) => return,
+                ) => {
+                    return;
+                }
 
                 TokenKind::Keyword(
                     KeywordKind::Def
@@ -1701,5 +1711,132 @@ impl Parser {
                 self.peek().span,
             ))
         }
+    }
+
+    fn parse_closure(&mut self) -> Result<Expression, ParseError> {
+        let start_token = self.previous();
+        let mut fields = Vec::new();
+
+        loop {
+            let field_name = self.eat(
+                TokenKind::Identifier,
+                CompilationErrorKind::ExpectedToken {
+                    expect: "identifier".into(),
+                    found: self.peek().lexeme.into(),
+                    after: Some("|".into()),
+                },
+            )?;
+
+            self.eat(
+                TokenKind::Punctuation(PunctuationKind::Colon),
+                CompilationErrorKind::ExpectedToken {
+                    expect: ":".into(),
+                    found: self.peek().lexeme.into(),
+                    after: Some("closure field name".into()),
+                },
+            )?;
+
+            let field_kind = self.type_composition()?;
+            fields.push(FieldDeclaration::new(
+                Visibility::Public,
+                field_name,
+                field_kind,
+            ));
+
+            if !self.try_eat(&[TokenKind::Punctuation(PunctuationKind::Comma)]) {
+                break;
+            }
+        }
+
+        self.eat(
+            TokenKind::Operator(OperatorKind::Pipe),
+            CompilationErrorKind::ExpectedToken {
+                expect: "|".into(),
+                found: self.peek().lexeme.into(),
+                after: Some("closure params".into()),
+            },
+        )?;
+
+        self.eat(
+            TokenKind::Operator(OperatorKind::Arrow),
+            CompilationErrorKind::ExpectedToken {
+                expect: "->".into(),
+                found: self.peek().lexeme.into(),
+                after: Some("|".into()),
+            },
+        )?;
+
+        let return_kind = self.type_composition()?;
+
+        self.eat(
+            TokenKind::Punctuation(PunctuationKind::LeftBrace),
+            CompilationErrorKind::ExpectedConstruction {
+                expect: "'{' before closure body".into(),
+                found: self.peek().lexeme,
+            },
+        )?;
+
+        let body = self.parse_scope()?;
+
+        let end_span = return_kind.span();
+
+        Ok(Expression::Closure(
+            start_token.clone(),
+            fields,
+            Box::new(return_kind),
+            Box::new(body),
+            start_token.span.merge(end_span),
+        ))
+    }
+
+    fn parse_closure_signature(&mut self) -> Result<Expression, ParseError> {
+        let start_token = self.previous();
+
+        self.eat(
+            TokenKind::Punctuation(PunctuationKind::LeftParen),
+            CompilationErrorKind::ExpectedToken {
+                expect: "(".into(),
+                found: self.peek().lexeme,
+                after: Some("'def'".into()),
+            },
+        )?;
+
+        let mut fields: Vec<Expression> = vec![];
+
+        loop {
+            let field_kind = self.type_composition()?;
+            fields.push(field_kind);
+
+            if !self.try_eat(&[TokenKind::Punctuation(PunctuationKind::Comma)]) {
+                break;
+            }
+        }
+
+        self.eat(
+            TokenKind::Punctuation(PunctuationKind::RightParen),
+            CompilationErrorKind::ExpectedToken {
+                expect: ")".into(),
+                found: self.peek().lexeme,
+                after: Some("closure param types".into()),
+            },
+        )?;
+
+        self.eat(
+            TokenKind::Operator(OperatorKind::Arrow),
+            CompilationErrorKind::ExpectedToken {
+                expect: "->".into(),
+                found: self.peek().lexeme,
+                after: Some("')'".into()),
+            },
+        )?;
+
+        let return_kind = self.type_composition()?;
+
+        return Ok(Expression::ClosureSignature(
+            start_token.clone(),
+            fields,
+            Box::new(return_kind.clone()),
+            start_token.span.merge(return_kind.span()),
+        ));
     }
 }

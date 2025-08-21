@@ -1,10 +1,17 @@
 use std::fmt::{self, Display};
 
-use crate::{Span, token::Token};
+use crate::{FieldDeclaration, Span, Statement, token::Token};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expression {
     Literal(Token, Span),
+    Closure(
+        Token,
+        Vec<FieldDeclaration>,
+        Box<Expression>,
+        Box<Statement>,
+        Span,
+    ),
     Unary(Token, Box<Expression>, Span),
     PostFix(Token, Box<Expression>, Span),
     Arithmetic(Box<Expression>, Token, Box<Expression>, Span),
@@ -24,6 +31,7 @@ pub enum Expression {
     Void,
     ListGet(Box<Expression>, Box<Expression>, Span),
     ListSet(Box<Expression>, Box<Expression>, Box<Expression>, Span),
+    ClosureSignature(Token, Vec<Expression>, Box<Expression>, Span),
 }
 
 impl Expression {
@@ -60,6 +68,8 @@ impl Expression {
             Expression::Void => 0,
             Expression::ListGet(expr, _, _) => expr.line(),
             Expression::ListSet(expr, _, _, _) => expr.line(),
+            Expression::Closure(pipe, _, _, _, _) => pipe.line,
+            Expression::ClosureSignature(location, _, _, _) => location.line,
         }
     }
 
@@ -82,6 +92,8 @@ impl Expression {
             | Expression::Attribute(_, _, span)
             | Expression::Group(_, span)
             | Expression::ListGet(_, _, span)
+            | Expression::ClosureSignature(_, _, _, span)
+            | Expression::Closure(_, _, _, _, span)
             | Expression::ListSet(_, _, _, span) => *span,
 
             Expression::Lambda => {
@@ -123,6 +135,10 @@ impl Display for Expression {
             Expression::Attribute(name, args, _) => write!(f, "Attribute({name:?}, {args:?})"),
             Expression::Void => write!(f, "Void()"),
             Expression::TypeComposition(_, _) => write!(f, "TypeComposition"),
+            Expression::Closure(_, _, _, _, _) => write!(f, "Closure"),
+            Expression::ClosureSignature(_, _, _, _) => {
+                write!(f, "Closure Signature")
+            }
         }
     }
 }

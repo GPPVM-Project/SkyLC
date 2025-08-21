@@ -87,6 +87,8 @@ impl SemanticAnalyzer {
             Expression::ListSet(list, index, value, _) => {
                 self.analyze_list_set_expr(list, index, value)
             }
+            Expression::Closure(token, field_declarations, expression, body, span) => todo!(),
+            Expression::ClosureSignature(token, expressions, expression, span) => todo!(),
         }
     }
 

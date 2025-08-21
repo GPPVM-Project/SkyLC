@@ -463,7 +463,7 @@ impl IRGenerator {
                 OperatorKind::EqualEqual => Instruction::Eq,
                 OperatorKind::NotEqual => Instruction::Neq,
                 OperatorKind::BitwiseAnd => Instruction::BitAnd,
-                OperatorKind::BitwiseOr => Instruction::BitOr,
+                OperatorKind::Pipe => Instruction::BitOr,
                 OperatorKind::DoubleStar => Instruction::Pow,
                 OperatorKind::Less => Instruction::Less,
                 OperatorKind::LessEqual => Instruction::LessEqual,

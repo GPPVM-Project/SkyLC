@@ -52,20 +52,18 @@ impl NativeBridge for VirtualMachine {
                 let index = info.id;
 
                 if self.config.verbose {
-                    // println!("Linking: {name} function.");
+                    println!("Linking: {name} function.");
                 }
 
                 self.native_functions[index as usize] = NativeFunction::new(func, info.arity);
             }
 
             None => {
-                if !self.unsafe_mode {
-                    gpp_error!(
-                        "Unsafe config: {}. Linkage of '{}' function failed. Can't found native definition.",
-                        self.unsafe_mode,
-                        name
-                    )
-                }
+                gpp_error!(
+                    "Unsafe config: {}. Linkage of '{}' function failed. Can't found native definition.",
+                    self.unsafe_mode,
+                    name
+                )
             }
         }
     }
