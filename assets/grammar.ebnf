@@ -1,0 +1,105 @@
+Program ::= Declaration*
+
+Declaration ::= TypeDecl | FunctionDecl | NativeDecl | BuiltinDecl | InternalDecl | StaticDecl | DecoratorDecl | Statement
+
+Return ::= 'return' Expression? ';'
+
+TypeDecl ::= Access? 'type' Identifier '{' FieldDecl (',' FieldDecl)* ','? '}'
+
+Access ::= 'pub' | 'mod'
+
+FieldDecl ::= Access? Identifier ':' Identifier
+
+FunctionDecl ::= Access? 'def' Prototype Scope
+
+NativeDecl ::= NativeFunc | NativeType
+
+NativeFunc ::= Access? 'native' 'def' Prototype ';'
+
+NativeType ::= Access? 'native' 'type' Identifier '{' FieldDecl (',' FieldDecl)* ','? '}'
+
+BuiltinDecl ::= 'builtin' Attribute
+
+Attribute ::= 'attribute' Identifier '(' (Identifier (',' Identifier)* )? ';'
+
+InternalDecl ::= 'internal' 'def' Prototype Scope
+
+StaticDecl ::= 'static' 'def' Prototype Scope
+
+DecoratorDecl ::= '#' '[' (CallExpr (',' CallExpr)*)? ']'
+
+Prototype ::= Identifier '(' FieldDecl (',' FieldDecl)* ')' '->' Identifier
+
+Statement ::= Scope | IfStmt | WhileStmt | ForStmt | VarStmt | ImportStmt | ExpressionStmt
+
+Scope ::= '{' Statement* '}'
+
+IfStmt ::= 'if' Expression Scope ElseStmt?
+
+ElseStmt ::= 'else' (IfStmt | Scope)
+
+WhileStmt ::= 'while' Expression Scope
+
+ForStmt ::= 'for' Identifier 'in' Expression Scope
+
+VarStmt ::= 'let' Identifier ('=' Expression)? ';'
+
+ImportStmt ::= 'import' Identifier ('.' Identifier)* ';'
+
+ExpressionStmt ::= Expression ';'
+
+Expression ::= AssignExpr
+
+AssignExpr ::= OrExpr ('=' AssignExpr)*
+
+OrExpr ::= AndExpr ('or' AndExpr)*
+
+AndExpr ::= EqualityExpr ('and' EqualityExpr)*
+
+EqualityExpr ::= ComparisonExpr (EqOp ComparisonExpr)*
+
+EqOp ::= '==' | '!='
+
+ComparisonExpr ::= TermExpr (CompOp TermExpr)?
+
+CompOp ::= '<' | '<=' | '>' | '>='
+
+TermExpr ::= FactorExpr (TermOp FactorExpr)*
+
+TermOp ::= '+' | '-'
+
+FactorExpr ::= UnaryExpr (FactorOp UnaryExpr)*
+
+FactorOp ::= '*' | '/'
+
+UnaryExpr ::= (UnaryOp UnaryExpr) | CallExpr
+
+CallExpr ::= (GetExpr | Identifier) '(' Args? ')'
+
+Args ::= Expression (',' Expression)*
+
+GetExpr ::= (LiteralExpr) ('.' Identifier)+
+
+LiteralExpr ::= Number | String | Boolean | Variable | Group
+
+Number ::= Int | Float
+
+Int ::= [1-9][0-9]*
+
+Float ::= [0-9]+ '.' [0-9]+
+
+String ::= '"' [UTF-8]* '"'
+
+Boolean ::= 'true' | 'false'
+
+Variable ::= Identifier
+
+Identifier ::= [a-zA-Z_][a-zA-Z0-9_]*
+
+Group ::= '(' Expression ')'
+
+
+
+
+
+
